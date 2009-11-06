@@ -1,0 +1,32 @@
+This is a customized gcc-6.6 for the Android platform.  It is based on the
+FSF gdb-6.6 release with the following modification listed in reversed
+chronological order.
+
+2009-07-15  Jing Yu  <jingyu@google.com>
+
+	Change Makefile.def, Makefile.tpl, configure.in. Add LDFLAGS,
+	LDFLAGS_FOR_BUILD to the list of variables that can be fed from
+	environment. Change configure.in to require a higher version of
+	autoconf to generate configure. Add --enable-checking to Makefile.def.
+	Regenerate configure and Makefile.in.
+	These features are already in gdb-6.8.
+
+2009-05-27  Jing Yu  <jingyu@google.com>
+
+	Back port a patch from gdb-6.8. Without this patch, arm-eabi-gdb
+	crashes if the .debug_line section contains an empty file name
+	table. See the following page for details.
+	http://sourceware.org/ml/gdb-patches/2007-04/msg00294.html
+
+	2007-04-19  Paul Brook  <paul@codesourcery.com>
+		    Daniel Jacobowitz  <dan@codesourcery.com>
+
+		* dwarf2read.c (dwarf2_debug_line_missing_file_complaint): New
+		function.
+		(dwarf_decode_lines): Check for line info without a file.
+
+2008-09-26  Doug Kwan  <dougkwan@google.com>
+
+	Change bfd/doc/Makefile.in so that the generated bfd.info is the
+	object directory.  This fixes a build problem where p4 checks out
+	a copy of bfd.info in the source tree as read-only.
