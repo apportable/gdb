@@ -1543,6 +1543,41 @@ thumb_get_next_pc (CORE_ADDR pc)
   unsigned short inst1 = read_memory_unsigned_integer (pc, 2);
   CORE_ADDR nextpc = pc + 2;		/* default is next instruction */
   unsigned long offset;
+  ULONGEST status, it;
+
+
+  /* Thumb-2 conditional execution support.  There are eight bits in
+     the CPSR which describe conditional execution state.  Once
+     reconstructed (they're in a funny order), the low five bits
+     describe the low bit of the condition for each instruction and
+     how many instructions remain.  The high three bits describe the
+     base condition.  One of the low four bits will be set if an IT
+     block is active.  These bits read as zero on earlier
+     processors.  */
+  status = read_register (ARM_PS_REGNUM);
+  it = ((status >> 8) & 0xfc) | ((status >> 25) & 0x3);
+
+  /* On GNU/Linux, where this routine is used, we use an undefined
+     instruction as a breakpoint.  Unlike BKPT, IT can disable execution
+     of the undefined instruction.  So we might miss the breakpoint!  */
+  if (((inst1 & 0xff00) == 0xbf00 && (inst1 & 0x000f) != 0) || (it & 0x0f))
+    error (_("Stepping through Thumb-2 IT blocks is not yet supported"));
+
+  if (it & 0x0f)
+    {
+      /* We are in a conditional block.  Check the condition.  */
+      int cond = it >> 4;
+
+      if (! condition_true (cond, status))
+	{
+	  /* Advance to the next instruction.  All the 32-bit
+	     instructions share a common prefix.  */
+	  if ((inst1 & 0xe000) == 0xe000 && (inst1 & 0x1800) != 0)
+	    return pc + 4;
+	  else
+	    return pc + 2;
+	}
+    }
 
   if ((inst1 & 0xff00) == 0xbd00)	/* pop {rlist, pc} */
     {
@@ -1559,7 +1594,6 @@ thumb_get_next_pc (CORE_ADDR pc)
     }
   else if ((inst1 & 0xf000) == 0xd000)	/* conditional branch */
     {
-      unsigned long status = read_register (ARM_PS_REGNUM);
       unsigned long cond = bits (inst1, 8, 11);
       if (cond != 0x0f && condition_true (cond, status))    /* 0x0f = SWI */
 	nextpc = pc_val + (sbits (inst1, 0, 7) << 1);
@@ -1568,14 +1602,168 @@ thumb_get_next_pc (CORE_ADDR pc)
     {
       nextpc = pc_val + (sbits (inst1, 0, 10) << 1);
     }
-  else if ((inst1 & 0xf800) == 0xf000)	/* long branch with link, and blx */
+  else if ((inst1 & 0xe000) == 0xe000) /* 32-bit instruction */
     {
-      unsigned short inst2 = read_memory_unsigned_integer (pc + 2, 2);
-      offset = (sbits (inst1, 0, 10) << 12) + (bits (inst2, 0, 10) << 1);
-      nextpc = pc_val + offset;
-      /* For BLX make sure to clear the low bits.  */
-      if (bits (inst2, 11, 12) == 1)
-	nextpc = nextpc & 0xfffffffc;
+      unsigned short inst2;
+      inst2 = read_memory_unsigned_integer (pc + 2, 2);
+
+      /* Default to the next instruction.  */
+      nextpc = pc + 4;
+
+      if ((inst1 & 0xf800) == 0xf000 && (inst2 & 0x8000) == 0x8000)
+	{
+	  /* Branches and miscellaneous control instructions.  */
+
+	  if ((inst2 & 0x1000) != 0 || (inst2 & 0xd001) == 0xc000)
+	    {
+	      /* B, BL, BLX.  */
+	      int j1, j2, imm1, imm2;
+
+	      imm1 = sbits (inst1, 0, 10);
+	      imm2 = bits (inst2, 0, 10);
+	      j1 = bit (inst2, 13);
+	      j2 = bit (inst2, 11);
+
+	      offset = ((imm1 << 12) + (imm2 << 1));
+	      offset ^= ((!j2) << 22) | ((!j1) << 23);
+
+	      nextpc = pc_val + offset;
+	      /* For BLX make sure to clear the low bits.  */
+	      if (bit (inst2, 12) == 0)
+		nextpc = nextpc & 0xfffffffc;
+	    }
+	  else if (inst1 == 0xf3de && (inst2 & 0xff00) == 0x3f00)
+	    {
+	      /* SUBS PC, LR, #imm8.  */
+	      nextpc = read_register (ARM_LR_REGNUM);
+	      nextpc -= inst2 & 0x00ff;
+	    }
+	  else if ((inst2 & 0xd000) == 0xc000 && (inst1 & 0x0380) != 0x0380)
+	    {
+	      /* Conditional branch.  */
+	      if (condition_true (bits (inst1, 6, 9), status))
+		{
+		  int sign, j1, j2, imm1, imm2;
+
+		  sign = sbits (inst1, 10, 10);
+		  imm1 = bits (inst1, 0, 5);
+		  imm2 = bits (inst2, 0, 10);
+		  j1 = bit (inst2, 13);
+		  j2 = bit (inst2, 11);
+
+		  offset = (sign << 20) + (j2 << 19) + (j1 << 18);
+		  offset += (imm1 << 12) + (imm2 << 1);
+
+		  nextpc = pc_val + offset;
+		}
+	    }
+	}
+      else if ((inst1 & 0xfe50) == 0xe810)
+	{
+	  /* Load multiple or RFE.  */
+	  int rn, offset, load_pc = 1;
+
+	  rn = bits (inst1, 0, 3);
+	  if (bit (inst1, 7) && !bit (inst1, 8))
+	    {
+	      /* LDMIA or POP */
+	      if (!bit (inst2, 15))
+		load_pc = 0;
+	      offset = bitcount (inst2) * 4 - 4;
+	    }
+	  else if (!bit (inst1, 7) && bit (inst1, 8))
+	    {
+	      /* LDMDB */
+	      if (!bit (inst2, 15))
+		load_pc = 0;
+	      offset = -4;
+	    }
+	  else if (bit (inst1, 7) && bit (inst1, 8))
+	    {
+	      /* RFEIA */
+	      offset = 0;
+	    }
+	  else if (!bit (inst1, 7) && !bit (inst1, 8))
+	    {
+	      /* RFEDB */
+	      offset = -8;
+	    }
+	  else
+	    load_pc = 0;
+
+	  if (load_pc)
+	    {
+	      CORE_ADDR addr = read_register (rn);
+	      nextpc = read_memory_unsigned_integer (addr + offset, 4);
+	    }
+	}
+      else if ((inst1 & 0xffef) == 0xea4f && (inst2 & 0xfff0) == 0x0f00)
+	{
+	  /* MOV PC or MOVS PC.  */
+	  nextpc = read_register (bits (inst2, 0, 3));
+	}
+      else if ((inst1 & 0xff70) == 0xf850 && (inst2 & 0xf000) == 0xf000)
+	{
+	  /* LDR PC.  */
+	  CORE_ADDR base;
+	  int rn, load_pc = 1;
+
+	  rn = bits (inst1, 0, 3);
+	  base = read_register (rn);
+	  if (rn == 15)
+	    {
+	      base = (base + 4) & ~(CORE_ADDR) 0x3;
+	      if (bit (inst1, 7))
+		base += bits (inst2, 0, 11);
+	      else
+		base -= bits (inst2, 0, 11);
+	    }
+	  else if (bit (inst1, 7))
+	    base += bits (inst2, 0, 11);
+	  else if (bit (inst2, 11))
+	    {
+	      if (bit (inst2, 10))
+		{
+		  if (bit (inst2, 9))
+		    base += bits (inst2, 0, 7);
+		  else
+		    base -= bits (inst2, 0, 7);
+		}
+	    }
+	  else if ((inst2 & 0x0fc0) == 0x0000)
+	    {
+	      int shift = bits (inst2, 4, 5), rm = bits (inst2, 0, 3);
+	      base += read_register (rm) << shift;
+	    }
+	  else
+	    /* Reserved.  */
+	    load_pc = 0;
+
+	  if (load_pc)
+	    nextpc = (CORE_ADDR) read_memory_unsigned_integer (base, 4);
+	}
+      else if ((inst1 & 0xfff0) == 0xe8d0 && (inst2 & 0xfff0) == 0xf000)
+	{
+	  /* TBB.  */
+	  CORE_ADDR table, offset, length;
+
+	  table = read_register (bits (inst1, 0, 3));
+	  offset = read_register (bits (inst2, 0, 3));
+	  length =
+	    (CORE_ADDR) (2 * read_memory_unsigned_integer (table + offset, 1));
+	  nextpc = pc_val + length;
+	}
+      else if ((inst1 & 0xfff0) == 0xe8d0 && (inst2 & 0xfff0) == 0xf000)
+	{
+	  /* TBH.  */
+	  CORE_ADDR table, offset, length;
+
+	  table = read_register (bits (inst1, 0, 3));
+	  offset = 2 * read_register (bits (inst2, 0, 3));
+	  length =
+	    (CORE_ADDR) (2 * read_memory_unsigned_integer (table + offset, 2));
+	  nextpc = pc_val + length;
+	}
     }
   else if ((inst1 & 0xff00) == 0x4700)	/* bx REG, blx REG */
     {
@@ -1587,6 +1775,17 @@ thumb_get_next_pc (CORE_ADDR pc)
       nextpc = ADDR_BITS_REMOVE (nextpc);
       if (nextpc == pc)
 	error (_("Infinite loop detected"));
+    }
+  else if ((inst1 & 0xf500) == 0xb100)
+    {
+      /* CBNZ or CBZ.  */
+      int imm = (bit (inst1, 9) << 6) + (bits (inst1, 3, 7) << 1);
+      ULONGEST reg = read_register (bits (inst1, 0, 2));
+
+      if (bit (inst1, 11) && reg != 0)
+	nextpc = pc_val + imm;
+      else if (!bit (inst1, 11) && reg == 0)
+	nextpc = pc_val + imm;
     }
 
   return nextpc;

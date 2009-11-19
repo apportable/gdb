@@ -2,6 +2,11 @@ This is a customized gcc-6.6 for the Android platform.  It is based on the
 FSF gdb-6.6 release with the following modification listed in reversed
 chronological order.
 
+2009-11-05  Doug Kwan  <dougkwan@google.com>
+
+	Change gdb/arm-tdep.c to port top of trunk version of
+	thumb_get_next_pc.  We need this to fix bug 2114759.
+
 2009-07-15  Jing Yu  <jingyu@google.com>
 
 	Change Makefile.def, Makefile.tpl, configure.in. Add LDFLAGS,
