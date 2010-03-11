@@ -81,7 +81,6 @@ i386_cannot_fetch_register (int regno)
 
 
 #ifdef HAVE_PTRACE_GETREGS
-#include <sys/procfs.h>
 #include <sys/ptrace.h>
 
 static void

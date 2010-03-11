@@ -177,13 +177,13 @@ clean-info:
 
 gdbserver: $(OBS) ${ADD_DEPS} ${CDEPS}
 	rm -f gdbserver
-	${CC-LD} $(INTERNAL_CFLAGS) $(INTERNAL_LDFLAGS) -o gdbserver $(OBS) \
-	  $(GDBSERVER_LIBS) $(XM_CLIBS)
+	${CC-LD} $(INTERNAL_CFLAGS) $(OBS) $(GDBSERVER_LIBS) $(XM_CLIBS) \
+	  $(INTERNAL_LDFLAGS) -o gdbserver
 
 gdbreplay: gdbreplay.o
 	rm -f gdbreplay
-	${CC-LD} $(INTERNAL_CFLAGS) $(INTERNAL_LDFLAGS) -o gdbreplay gdbreplay.o \
-	  $(XM_CLIBS)
+	${CC-LD} $(INTERNAL_CFLAGS) gdbreplay.o $(XM_CLIBS) \
+	  $(INTERNAL_LDFLAGS) -o gdbreplay 
 
 # Put the proper machine-specific files first, so M-. on a machine
 # specific routine gets the one for the correct machine.
