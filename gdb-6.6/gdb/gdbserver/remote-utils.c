@@ -57,6 +57,10 @@
 #include <winsock.h>
 #endif
 
+#ifdef HAVE_SYS_UN_H
+#include <sys/un.h>
+#endif
+
 #ifndef HAVE_SOCKLEN_T
 typedef int socklen_t;
 #endif
@@ -94,7 +98,46 @@ remote_open (char *name)
 #if defined(F_SETFL) && defined (FASYNC)
   int save_fcntl_flags;
 #endif
-  
+
+#ifdef HAVE_SYS_UN_H
+  if (name[0] == '+')
+    {
+#ifdef USE_WIN32API
+      error ("Only <host>:<port> is supported on this platform.");
+#else
+      struct sockaddr_un unix;
+      socklen_t unixlen;
+      int tmp_desc;
+
+      name += 1; // skip the initial +
+
+      tmp_desc = socket (AF_UNIX, SOCK_STREAM, 0);
+      if (tmp_desc < 0)
+        perror_with_name ("Could not create Unix-domain socket");
+
+      memset (&unix, 0, sizeof unix);
+      unix.sun_family = AF_UNIX;
+      strlcpy(unix.sun_path, name, sizeof unix.sun_path);
+
+      unlink (unix.sun_path);
+      if (bind (tmp_desc, (struct sockaddr *)&unix, unixlen) < 0 ||
+          listen (tmp_desc, 1) < 0)
+        perror_with_name ("Could not bind to Unix-domain socket");
+
+      fprintf (stderr, "Listening on unix socket %s\n", unix.sun_path);
+      fflush (stderr);
+
+      unixlen = sizeof (unix);
+      remote_desc = accept (tmp_desc, (struct sockaddr *)&unix, &unixlen);
+      if (remote_desc < 0)
+        perror_with_name ("Unix-domain accept failed");
+
+      close (tmp_desc);
+      signal (SIGPIPE, SIG_IGN);
+#endif
+    }
+  else
+#endif /* HAVE_SYS_UN_H */
   if (!strchr (name, ':'))
     {
 #ifdef USE_WIN32API

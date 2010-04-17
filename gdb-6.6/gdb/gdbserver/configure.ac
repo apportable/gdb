@@ -40,7 +40,7 @@ AC_CHECK_HEADERS(sgtty.h termio.h termios.h sys/reg.h string.h dnl
 		 proc_service.h sys/procfs.h thread_db.h linux/elf.h dnl
 		 stdlib.h unistd.h dnl
 		 terminal.h sys/ioctl.h netinet/in.h sys/socket.h netdb.h dnl
-		 netinet/tcp.h arpa/inet.h sys/wait.h sys/dir.h sys/user.h)
+		 netinet/tcp.h arpa/inet.h sys/wait.h sys/dir.h sys/user.h sys/un.h)
 
 AC_CHECK_DECLS(strerror)
 

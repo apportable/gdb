@@ -141,3 +141,6 @@
    Windows, we use the Windows API when building for MinGW, but the POSIX API
    when building for Cygwin. */
 #undef USE_WIN32API
+
+/* Define to 1 if you have the <sys/un.h> header file. */
+#undef HAVE_SYS_UN_H
