@@ -105,8 +105,8 @@ remote_open (char *name)
 #ifdef USE_WIN32API
       error ("Only <host>:<port> is supported on this platform.");
 #else
-      struct sockaddr_un unix;
-      socklen_t unixlen;
+      struct sockaddr_un sockaddr;
+      socklen_t sockaddrlen;
       int tmp_desc;
 
       name += 1; // skip the initial +
@@ -115,20 +115,20 @@ remote_open (char *name)
       if (tmp_desc < 0)
         perror_with_name ("Could not create Unix-domain socket");
 
-      memset (&unix, 0, sizeof unix);
-      unix.sun_family = AF_UNIX;
-      strlcpy(unix.sun_path, name, sizeof unix.sun_path);
+      memset (&sockaddr, 0, sizeof sockaddr);
+      sockaddr.sun_family = AF_UNIX;
+      strlcpy(sockaddr.sun_path, name, sizeof sockaddr.sun_path);
 
-      unlink (unix.sun_path);
-      if (bind (tmp_desc, (struct sockaddr *)&unix, unixlen) < 0 ||
+      unlink (sockaddr.sun_path);
+      if (bind (tmp_desc, (struct sockaddr *)&sockaddr, sockaddrlen) < 0 ||
           listen (tmp_desc, 1) < 0)
         perror_with_name ("Could not bind to Unix-domain socket");
 
-      fprintf (stderr, "Listening on unix socket %s\n", unix.sun_path);
+      fprintf (stderr, "Listening on sockaddr socket %s\n", sockaddr.sun_path);
       fflush (stderr);
 
-      unixlen = sizeof (unix);
-      remote_desc = accept (tmp_desc, (struct sockaddr *)&unix, &unixlen);
+      sockaddrlen = sizeof (sockaddr);
+      remote_desc = accept (tmp_desc, (struct sockaddr *)&sockaddr, &sockaddrlen);
       if (remote_desc < 0)
         perror_with_name ("Unix-domain accept failed");
 
