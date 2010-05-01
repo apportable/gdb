@@ -120,6 +120,7 @@ remote_open (char *name)
       strlcpy(sockaddr.sun_path, name, sizeof sockaddr.sun_path);
 
       unlink (sockaddr.sun_path);
+      sockaddrlen = sizeof(sockaddr.sun_family) + strlen(sockaddr.sun_path)+1;
       if (bind (tmp_desc, (struct sockaddr *)&sockaddr, sockaddrlen) < 0 ||
           listen (tmp_desc, 1) < 0)
         perror_with_name ("Could not bind to Unix-domain socket");
