@@ -2673,7 +2673,7 @@ local-distclean:
 	-rmdir texinfo/doc texinfo/info texinfo/intl texinfo/lib 2>/dev/null
 	-rmdir texinfo/makeinfo texinfo/po texinfo/util 2>/dev/null
 	-rmdir fastjar gcc libiberty texinfo zlib 2>/dev/null
-	-find . -name config.cache -exec rm -f {} \; 2>/dev/null
+	-find . -name config.cache -exec rm -f {} \; \; 2>/dev/null
 
 local-maintainer-clean:
 	@echo "This command is intended for maintainers to use;"
@@ -11193,7 +11193,7 @@ configure-expat:
 	s=`cd $(srcdir); ${PWD_COMMAND}`; export s; \
 	test ! -f $(HOST_SUBDIR)/expat/Makefile || exit 0; \
 	$(SHELL) $(srcdir)/mkinstalldirs $(HOST_SUBDIR)/expat ; \
-	$(HOST_EXPORTS) \
+	$(HOST_EXPORTS)  \
 	echo Configuring in $(HOST_SUBDIR)/expat; \
 	cd "$(HOST_SUBDIR)/expat" || exit 1; \
 	case $(srcdir) in \
@@ -11205,7 +11205,7 @@ configure-expat:
 	libsrcdir="$$s/expat"; \
 	$(SHELL) $${libsrcdir}/configure \
 	  $(HOST_CONFIGARGS) --build=${build_alias} --host=${host_alias} \
-	  --target=${target_alias} $${srcdiroption}  \
+	  --target=${target_alias} $${srcdiroption} --disable-shared \
 	  || exit 1
 @endif expat
 
@@ -11225,7 +11225,7 @@ all-expat: configure-expat
 	@: $(MAKE); $(unstage)
 	@r=`${PWD_COMMAND}`; export r; \
 	s=`cd $(srcdir); ${PWD_COMMAND}`; export s; \
-	$(HOST_EXPORTS) \
+	$(HOST_EXPORTS)  \
 	(cd $(HOST_SUBDIR)/expat && \
 	  $(MAKE) $(BASE_FLAGS_TO_PASS) $(EXTRA_HOST_FLAGS)  \
 		$(TARGET-expat))
@@ -11254,13 +11254,7 @@ maybe-install-expat:
 @if expat
 maybe-install-expat: install-expat
 
-install-expat: installdirs
-	@: $(MAKE); $(unstage)
-	@r=`${PWD_COMMAND}`; export r; \
-	s=`cd $(srcdir); ${PWD_COMMAND}`; export s; \
-	$(HOST_EXPORTS) \
-	(cd $(HOST_SUBDIR)/expat && \
-	  $(MAKE) $(FLAGS_TO_PASS)  install)
+install-expat:
 
 @endif expat
 

@@ -55,3 +55,9 @@ from this file (or reword it to denote what local mod remains).
 	(EXPAT_INCLUDE, EXPAT_CFLAGS): New vars.
 	(INTERNAL_CFLAGS_BASE): Add EXPAT_CFLAGS.
 	(CDEPS): Add EXPAT_DEPS.
+
+2010-08-20  Jing Yu  <jingyu@google.com>
+            Jim Huang  <jserv@0xlab.org>
+
+	* Makefile.def (host_modules): Build static expat internally.
+	* Makefile.in: Regenerate.
