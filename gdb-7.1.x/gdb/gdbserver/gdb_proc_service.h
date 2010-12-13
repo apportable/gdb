@@ -50,6 +50,8 @@ typedef enum
   PS_NOFREGS			/* FPU register set not available.  */
 } ps_err_e;
 
+/* Android's lwpid_t and psaddr_t are defined thread_db.h. */
+#ifndef __ANDROID__
 #ifndef HAVE_LWPID_T
 typedef unsigned int lwpid_t;
 #endif
@@ -57,6 +59,7 @@ typedef unsigned int lwpid_t;
 #ifndef HAVE_PSADDR_T
 typedef void *psaddr_t;
 #endif
+#endif /* !defined(__ANDROID__) */
 
 #ifndef HAVE_PRGREGSET_T
 typedef elf_gregset_t prgregset_t;
