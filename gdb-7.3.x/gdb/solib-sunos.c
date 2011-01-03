@@ -3,6 +3,8 @@
    Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000,
    2001, 2004, 2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
 
+   Copyright (C) 2011, NVIDIA CORPORATION.  All rights reserved.
+
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
@@ -839,6 +841,7 @@ _initialize_sunos_solib (void)
   sunos_so_ops.clear_solib = sunos_clear_solib;
   sunos_so_ops.solib_create_inferior_hook = sunos_solib_create_inferior_hook;
   sunos_so_ops.special_symbol_handling = sunos_special_symbol_handling;
+  sunos_so_ops.can_read_current_sos = NULL;
   sunos_so_ops.current_sos = sunos_current_sos;
   sunos_so_ops.open_symbol_file_object = open_symbol_file_object;
   sunos_so_ops.in_dynsym_resolve_code = sunos_in_dynsym_resolve_code;

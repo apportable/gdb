@@ -2,6 +2,8 @@
    Copyright (C) 2004, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
+   Copyright (C) 2011, NVIDIA CORPORATION.  All rights reserved.
+
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
@@ -1333,6 +1335,7 @@ _initialize_frv_solib (void)
   frv_so_ops.clear_solib = frv_clear_solib;
   frv_so_ops.solib_create_inferior_hook = frv_solib_create_inferior_hook;
   frv_so_ops.special_symbol_handling = frv_special_symbol_handling;
+  frv_so_ops.can_read_current_sos = NULL;
   frv_so_ops.current_sos = frv_current_sos;
   frv_so_ops.open_symbol_file_object = open_symbol_file_object;
   frv_so_ops.in_dynsym_resolve_code = frv_in_dynsym_resolve_code;

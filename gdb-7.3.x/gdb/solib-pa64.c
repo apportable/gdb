@@ -3,6 +3,8 @@
    Copyright (C) 2004, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
+   Copyright (C) 2011, NVIDIA CORPORATION.  All rights reserved.
+
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
@@ -655,6 +657,7 @@ _initialize_pa64_solib (void)
   pa64_so_ops.clear_solib = pa64_clear_solib;
   pa64_so_ops.solib_create_inferior_hook = pa64_solib_create_inferior_hook;
   pa64_so_ops.special_symbol_handling = pa64_special_symbol_handling;
+  pa64_so_ops.can_read_current_sos = NULL;
   pa64_so_ops.current_sos = pa64_current_sos;
   pa64_so_ops.open_symbol_file_object = pa64_open_symbol_file_object;
   pa64_so_ops.in_dynsym_resolve_code = pa64_in_dynsym_resolve_code;

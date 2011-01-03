@@ -4,6 +4,8 @@
    2000, 2001, 2002, 2003, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
+   Copyright (C) 2011, NVIDIA CORPORATION.  All rights reserved.
+
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
@@ -702,8 +704,13 @@ static void
 update_solib_list (int from_tty, struct target_ops *target)
 {
   struct target_so_ops *ops = solib_ops (target_gdbarch);
-  struct so_list *inferior = ops->current_sos();
+  struct so_list *inferior;
   struct so_list *gdb, **gdb_link;
+
+  if (ops->can_read_current_sos && !ops->can_read_current_sos())
+      return;
+
+  inferior = ops->current_sos();
 
   /* We can reach here due to changing solib-search-path or the
      sysroot, before having any inferior.  */

@@ -1,5 +1,7 @@
 /* Copyright (C) 2010 Free Software Foundation, Inc.
 
+   Copyright (C) 2011, NVIDIA CORPORATION.  All rights reserved.
+
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
@@ -682,6 +684,7 @@ ia64_hpux_target_so_ops (void)
   ops->clear_solib = ia64_hpux_clear_solib;
   ops->solib_create_inferior_hook = ia64_hpux_solib_create_inferior_hook;
   ops->special_symbol_handling = ia64_hpux_special_symbol_handling;
+  ops->can_read_current_sos = NULL;
   ops->current_sos = ia64_hpux_current_sos;
   ops->open_symbol_file_object = ia64_hpux_open_symbol_file_object;
   ops->in_dynsym_resolve_code = ia64_hpux_in_dynsym_resolve_code;

@@ -1,6 +1,8 @@
 /* Cell SPU GNU/Linux support -- shared library handling.
    Copyright (C) 2009, 2010, 2011 Free Software Foundation, Inc.
 
+   Copyright (C) 2011, NVIDIA CORPORATION.  All rights reserved.
+
    Contributed by Ulrich Weigand <uweigand@de.ibm.com>.
 
    This file is part of GDB.
@@ -514,6 +516,7 @@ set_spu_solib_ops (struct gdbarch *gdbarch)
       spu_so_ops.solib_create_inferior_hook = spu_solib_create_inferior_hook;
       spu_so_ops.relocate_section_addresses = spu_relocate_section_addresses;
       spu_so_ops.free_so = spu_free_so;
+      spu_so_ops.can_read_current_sos = NULL;
       spu_so_ops.current_sos = spu_current_sos;
       spu_so_ops.bfd_open = spu_bfd_open;
       spu_so_ops.lookup_lib_global_symbol = spu_lookup_lib_symbol;

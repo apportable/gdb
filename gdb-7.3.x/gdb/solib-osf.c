@@ -3,6 +3,8 @@
    Copyright (C) 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001, 2007, 2008,
    2009, 2010, 2011 Free Software Foundation, Inc.
 
+   Copyright (C) 2011, NVIDIA CORPORATION.  All rights reserved.
+
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
@@ -630,6 +632,7 @@ _initialize_osf_solib (void)
   osf_so_ops.clear_solib = osf_clear_solib;
   osf_so_ops.solib_create_inferior_hook = osf_solib_create_inferior_hook;
   osf_so_ops.special_symbol_handling = osf_special_symbol_handling;
+  osf_so_ops.can_read_current_sos = NULL;
   osf_so_ops.current_sos = osf_current_sos;
   osf_so_ops.open_symbol_file_object = osf_open_symbol_file_object;
   osf_so_ops.in_dynsym_resolve_code = osf_in_dynsym_resolve_code;
