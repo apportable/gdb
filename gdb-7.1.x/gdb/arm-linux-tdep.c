@@ -683,6 +683,78 @@ arm_linux_regset_from_core_section (struct gdbarch *gdbarch,
   return NULL;
 }
 
+/* Copy the value of next pc of sigreturn and rt_sigrturn into PC,
+   return 1.  In addition, set IS_THUMB depending on whether we
+   will return to ARM or Thumb code.  Return 0 if it is not a
+   rt_sigreturn/sigreturn syscall.  */
+static int
+arm_linux_sigreturn_return_addr (struct frame_info *frame,
+				 unsigned long svc_number,
+				 CORE_ADDR *pc, int *is_thumb)
+{
+  /* Is this a sigreturn or rt_sigreturn syscall?  */
+  if (svc_number == 119 || svc_number == 173)
+    {
+      if (get_frame_type (frame) == SIGTRAMP_FRAME)
+	{
+	  CORE_ADDR cpsr
+	    = frame_unwind_register_unsigned (frame, ARM_PS_REGNUM);
+
+	  *is_thumb = (cpsr & CPSR_T) != 0;
+	  *pc = frame_unwind_caller_pc (frame);
+	  return 1;
+	}
+    }
+  return 0;
+}
+
+/* When FRAME is at a syscall instruction, return the PC of the next
+   instruction to be executed.  */
+
+static CORE_ADDR
+arm_linux_syscall_next_pc (struct frame_info *frame)
+{
+  CORE_ADDR pc = get_frame_pc (frame);
+  CORE_ADDR return_addr = 0;
+  int is_thumb = arm_frame_is_thumb (frame);
+  ULONGEST svc_number = 0;
+
+  if (is_thumb)
+    {
+      svc_number = get_frame_register_unsigned (frame, 7);
+      return_addr = pc + 2;
+    }
+  else
+    {
+      struct gdbarch *gdbarch = get_frame_arch (frame);
+      enum bfd_endian byte_order_for_code = 
+	gdbarch_byte_order_for_code (gdbarch);
+      unsigned long this_instr = 
+	read_memory_unsigned_integer (pc, 4, byte_order_for_code);
+
+      unsigned long svc_operand = (0x00ffffff & this_instr);
+      if (svc_operand)  /* OABI.  */
+	{
+	  svc_number = svc_operand - 0x900000;
+	}
+      else /* EABI.  */
+	{
+	  svc_number = get_frame_register_unsigned (frame, 7);
+	}
+
+      return_addr = pc + 4;
+    }
+
+  arm_linux_sigreturn_return_addr (frame, svc_number, &return_addr, &is_thumb);
+
+  /* Addresses for calling Thumb functions have the bit 0 set.  */
+  if (is_thumb)
+    return_addr |= 1;
+
+  return return_addr;
+}
+
+
 /* Insert a single step breakpoint at the next executed instruction.  */
 
 static int
@@ -700,7 +772,7 @@ arm_linux_software_single_step (struct frame_info *frame)
   if (next_pc > 0xffff0000)
     next_pc = get_frame_register_unsigned (frame, ARM_LR_REGNUM);
 
-  insert_single_step_breakpoint (gdbarch, aspace, next_pc);
+  arm_insert_single_step_breakpoint (gdbarch, aspace, next_pc);
 
   return 1;
 }
@@ -741,8 +813,12 @@ arm_linux_copy_svc (struct gdbarch *gdbarch, uint32_t insn, CORE_ADDR to,
 		    struct regcache *regs, struct displaced_step_closure *dsc)
 {
   CORE_ADDR from = dsc->insn_addr;
+  CORE_ADDR return_to = 0;
+
   struct frame_info *frame;
   unsigned int svc_number = displaced_read_reg (regs, from, 7);
+  int is_sigreturn = 0;
+  int is_thumb;
 
   if (debug_displaced)
     fprintf_unfiltered (gdb_stdlog, "displaced: copying Linux svc insn %.8lx\n",
@@ -750,13 +826,10 @@ arm_linux_copy_svc (struct gdbarch *gdbarch, uint32_t insn, CORE_ADDR to,
 
   frame = get_current_frame ();
 
-  /* Is this a sigreturn or rt_sigreturn syscall?  Note: these are only useful
-     for EABI.  */
-  if (svc_number == 119 || svc_number == 173)
+  is_sigreturn = arm_linux_sigreturn_return_addr(frame, svc_number,
+						 &return_to, &is_thumb);
+  if (is_sigreturn)
     {
-      if (get_frame_type (frame) == SIGTRAMP_FRAME)
-	{
-	  CORE_ADDR return_to;
 	  struct symtab_and_line sal;
 
 	  if (debug_displaced)
@@ -764,7 +837,6 @@ arm_linux_copy_svc (struct gdbarch *gdbarch, uint32_t insn, CORE_ADDR to,
 	      "sigreturn/rt_sigreturn SVC call. PC in frame = %lx\n",
 	      (unsigned long) get_frame_pc (frame));
 
-	  return_to = frame_unwind_caller_pc (frame);
 	  if (debug_displaced)
 	    fprintf_unfiltered (gdb_stdlog, "displaced: unwind pc = %lx. "
 	      "Setting momentary breakpoint.\n", (unsigned long) return_to);
@@ -796,7 +868,7 @@ arm_linux_copy_svc (struct gdbarch *gdbarch, uint32_t insn, CORE_ADDR to,
       else if (debug_displaced)
 	fprintf_unfiltered (gdb_stdlog, "displaced: sigreturn/rt_sigreturn "
 			    "SVC call not in signal trampoline frame\n");
-    }
+    
 
   /* Preparation: If we detect sigreturn, set momentary breakpoint at resume
 		  location, else nothing.
@@ -1000,6 +1072,9 @@ arm_linux_init_abi (struct gdbarch_info info,
   set_gdbarch_displaced_step_free_closure (gdbarch,
 					   simple_displaced_step_free_closure);
   set_gdbarch_displaced_step_location (gdbarch, displaced_step_at_entry_point);
+
+
+  tdep->syscall_next_pc = arm_linux_syscall_next_pc;
 }
 
 /* Provide a prototype to silence -Wmissing-prototypes.  */
