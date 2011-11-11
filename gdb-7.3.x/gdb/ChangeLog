@@ -5,6 +5,13 @@
 	(exception_messages, exception_messages_size): New static globals.
 	(throw_it): Use exception_messages array to handle nested calls.
 
+2011-11-11  Keith Seitz  <keiths@redhat.com>
+
+        PR gdb/12843
+        * linespec.c (locate_first_half): Keep ':' if it looks
+        like it could be part of a Windows path starting with
+        a drive letter.
+
 2011-11-10  Doug Evans  <dje@google.com>
 
 	* dwarf2read.c (dw2_map_symbol_filenames): New parameter
