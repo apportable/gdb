@@ -1,0 +1,511 @@
+# Copyright 2009, 2010 Google Inc. All Rights Reserved.
+# Top level driver for running google3 tests.
+# The actual test driver .exp files are in google3/devtools/gdb/testsuite.
+# This file exists as a bridge to them.
+#
+# Since this test is quite long (~2hrs, requires building
+# hello_world_webserver 32 times, and bringing borg tasks up), and since
+# this is part of "regular" gdb test suite, it is desireable to be able
+# to skip this test when testing non-google3-affecting code.
+# The execution of this test is controlled by setting GOOGLE3_TESTS
+# runtest parameter.
+# The defaults are defined to do a simple quick test.
+#
+# Test parameters:
+#
+# GOOGLE3_TESTS
+# default: "" (no google3 tests are run)
+# possible values: shell-glob space-separated list of google3 tests to run
+# N.B. Entries do *not* contain the trailing ".exp".  Dejagnu treats
+# "runtest GOOGLE3_TESTS=foo.exp" as .exp file GOOGLE3_TESTS=foo.  Blech.
+# To run all tests, use GOOGLE3_TESTS='*'.
+#
+# GOOGLE3_CLIENT
+# default: $env(USER)-gdb-test-client
+# - specifies name of p4 client to use
+# - if provided it must exist
+# - if client exists, the test is built in it, and the client
+#   is not modified in any way
+# - if using default client and it does not exist, it is created as a
+#   srcfs-only P4 client at the start of the test, and removed at the end
+# - if $env(USER) doesn't exist, client must be specified
+#
+# GOOGLE3_WHERE
+# default: local
+# possible values: all,
+#                  or any of: local remote (or any combination)
+#
+# GOOGLE3_CPU
+# i686 default: piii
+# amd64 default: piii k8
+# possible values: all,
+#                  or any of: piii k8 (or any combination)
+#
+# GOOGLE3_MODE
+# default: dbg
+# possible values: all,
+#                  or any of: dbg opt fastbuild coverage (or any combination)
+#
+# GOOGLE3_BUILD
+# default: forge
+# possible values: none,
+#                  or all,
+#                  or any of: forge noforge (or any combination)
+# "none" skips the build step, assuming the tree is already built;
+# it is the responsibility of the user to specify the other GOOGLE3_parameters
+# to correctly match the build.
+#
+# BORG_CELL
+# default: ia
+#
+# CROSSTOOL_ARGS
+# default: ""
+# Use CROSSTOOL_ARGS to pass any special blaze build flags,
+# (e.g. "-C local" when building using local crosstool).
+
+if { ![istarget "i?86-*"] && ![istarget "x86_64-*"] } {
+    unsupported "google3"
+    return
+}
+
+# Quick check for whether the user wants us to run the tests.
+
+if { ![info exists GOOGLE3_TESTS] } {
+    verbose -log "GOOGLE3_TESTS not set, skipping google3 tests"
+    untested "google3"
+    return
+}
+
+load_lib google.exp
+
+# GLOBAL initializations.
+
+set old_wd [pwd]
+
+if [ info exists env(USER) ] {
+    set default_client "$env(USER)-gdb-test-client"
+} else {
+    set default_client ""
+}
+
+# Argument validation.
+
+if { [info exists GOOGLE3_CLIENT] } {
+    if { ![client_exists $GOOGLE3_CLIENT] } {
+	error "GOOGLE3_CLIENT must name existing P4 client."
+    }
+} else {
+    if { "$default_client" != "" } {
+	set GOOGLE3_CLIENT $default_client
+    } else {
+	error "GOOGLE3_CLIENT not specified and env(USER) doesn't exist"
+    }
+}
+
+if { ![info exists GOOGLE3_WHERE] } {
+    set GOOGLE3_WHERE "local"
+}
+if { "$GOOGLE3_WHERE" == "all" } {
+    set GOOGLE3_WHERE "local remote"
+}
+foreach where $GOOGLE3_WHERE {
+    switch -- $where {
+	local { }
+	remote { }
+	default {
+	    error "Unrecognized value of GOOGLE3_WHERE: \"$where\""
+	}
+    }
+}
+
+if { ![info exists GOOGLE3_CPU] } {
+    switch -glob -- ${target_alias} {
+	"i?86-*" { set GOOGLE3_CPU "piii" }
+	"x86_64-*" { set GOOGLE3_CPU "k8" }
+    }
+}
+if { "$GOOGLE3_CPU" == "all" } {
+    set GOOGLE3_CPU "piii k8"
+}
+foreach cpu $GOOGLE3_CPU {
+    switch -- $cpu {
+	piii { }
+	k8 { }
+	default {
+	    error "Unrecognized value of GOOGLE3_CPU: \"$cpu\""
+	}
+    }
+}
+
+if { ![info exists GOOGLE3_MODE] } {
+    set GOOGLE3_MODE "dbg"
+}
+if { "$GOOGLE3_MODE" == "all" } {
+    set GOOGLE3_MODE "dbg opt fastbuild coverage"
+}
+foreach mode $GOOGLE3_MODE {
+    switch -- $mode {
+	dbg { }
+	opt { }
+	fastbuild { }
+	coverage { }
+	default {
+	    error "Unrecognized value of GOOGLE3_MODE: \"$mode\""
+	}
+    }
+}
+
+if { ![info exists GOOGLE3_BUILD] } {
+    set GOOGLE3_BUILD "forge"
+}
+if { "$GOOGLE3_BUILD" == "all" } {
+    set GOOGLE3_MODE "forge noforge"
+}
+foreach build $GOOGLE3_BUILD {
+    switch -- $build {
+	none { }
+	forge { }
+	noforge { }
+	default {
+	    error "Unrecognized value of GOOGLE3_BUILD: \"$build\""
+	}
+    }
+}
+
+if { ![info exists BORG_CELL] } {
+    set BORG_CELL "ia"; # Default cell to run remote experiments in
+}
+
+if { ![info exists CROSSTOOL_ARGS] } {
+    set CROSSTOOL_ARGS ""
+}
+
+# Process user-provided parameters.
+
+# If CXX_FOR_TARGET is set to a known crosstool, use that crosstool.
+if { [info exists CXX_FOR_TARGET] } {
+    if { [regexp {(.+)/(gcc-.+)-glibc.*(x86_64|i686)} $CXX_FOR_TARGET junk top gcc_version cpu] \
+	 || [regexp {(.+)/(gcc-.+)-glibc.*(/g\+\+)} $CXX_FOR_TARGET junk top gcc_version cpu] } {
+	switch $gcc_version {
+	    gcc-4.4.3 {
+		lappend CROSSTOOL_ARGS "--crosstool_top=//third_party/crosstool:v14-canary"
+	    }
+	    gcc-4.4.0 {
+		# When running v13 on forge, we need to use the copy in
+		# //third_party/crosstool.
+		# Alas --crosstool=v13 doesn't work.
+		# NOTE: If you provide --compiler you also have to provide
+		# --glibc (and --cpu).  This is as of 10aug10.  We don't need
+		# to specify --compiler so it's elided.
+		lappend CROSSTOOL_ARGS "--crosstool_top=//third_party/crosstool:v13-canary"
+	    }
+	    gcc-4.3.1 {
+		lappend CROSSTOOL_ARGS "--crosstool=v12"
+	    }
+	    default {
+		error "unsupported crosstool"
+	    }
+	}
+	switch $cpu {
+	    x86_64 { set cpu "k8" }
+	    i686 { set cpu "piii" }
+	    # This case is for v13,v14,etc. with unified i686/amd64 tools.
+	    /g++ { set cpu "" }
+	    default {
+		error "unexpected cpu: $cpu"
+	    }
+	}
+	if { $cpu != "" } {
+	    set GOOGLE3_CPU $cpu
+	}
+    } elseif { [regexp {(.+)/third_party/crosstool/(.+)/gcc/.* (-m64|-m32)} $CXX_FOR_TARGET junk top crosstool_version cpu] } {
+	switch -glob -- $crosstool_version {
+	    "v??" { }
+	    "v??/*" {
+		regsub -all "/" $crosstool_version "-" crosstool_version
+	    }
+	    default {
+		error "unexpected crosstool version: $crosstool_version"
+	    }
+	}
+	lappend CROSSTOOL_ARGS "--crosstool_top=//third_party/crosstool:$crosstool_version"
+	switch -- $cpu {
+	    -m64 { set cpu "k8" }
+	    -m32 { set cpu "piii" }
+	    default {
+		error "unexpected cpu: $cpu"
+	    }
+	}
+	set GOOGLE3_CPU $cpu
+    } else {
+	error "could not transform CXX_FOR_TARGET=$CXX_FOR_TARGET into blaze --crosstool_top and --compiler"
+    }
+}
+
+# Done processing, log what we have.
+
+verbose -log "GOOGLE3_TESTS: $GOOGLE3_TESTS"
+verbose -log "GOOGLE3_CLIENT: $GOOGLE3_CLIENT"
+verbose -log "GOOGLE3_WHERE: $GOOGLE3_WHERE"
+verbose -log "GOOGLE3_CPU: $GOOGLE3_CPU"
+verbose -log "GOOGLE3_MODE: $GOOGLE3_MODE"
+verbose -log "GOOGLE3_BUILD: $GOOGLE3_BUILD"
+verbose -log "BORG_CELL: $BORG_CELL"
+verbose -log "CROSSTOOL_ARGS: $CROSSTOOL_ARGS"
+
+# Create the p4 client if necessary and cd to it.
+
+set client_created 0
+
+set top_dir [client_top $GOOGLE3_CLIENT]
+if { [client_exists $GOOGLE3_CLIENT] } {
+    verbose -log "Using existing $GOOGLE3_CLIENT P4 client."
+} else {
+    verbose -log "Creating $GOOGLE3_CLIENT P4 client."
+    create_p4_client $GOOGLE3_CLIENT
+    set client_created 1
+}
+verbose -log "google3 top dir: $top_dir"
+cd "$top_dir/google3"
+
+# NOTE: For the rest of the file, don't "early exit" without cleaning up.
+
+# Return the path of the testsuite source directory.
+# This assumes we're at the top google3 directory.
+
+proc google3_testsuite_source_dir { } {
+    set testsuite_dir "devtools/gdb/testsuite"
+    if [file exists $testsuite_dir] {
+	return $testsuite_dir
+    } elseif [file exists "../READONLY/google3/$testsuite_dir"] {
+	return "../READONLY/google3/$testsuite_dir"
+    } else {
+	error "cannot find gdb google3 testsuite directory"
+    }
+}
+
+# Return the path of the testsuite canonical directory.
+# "canonical" here means without the "../READONLY/google3"
+# that google3_testsuite_source_dir may have.
+# This assumes we're at the top google3 directory.
+
+proc google3_testsuite_dir { } {
+    return "devtools/gdb/testsuite"
+}
+
+# Variant of runtest_file_p.
+# Return non-zero if testcase_exp has been selected to run.
+
+proc google3_runtest_file_p { tests_to_run testcase_exp } {
+    # Strip the trailing .exp.
+    regsub {[.]exp$} $testcase_exp "" testcase
+
+    foreach ptn $tests_to_run {
+	if { [string match "*/$ptn" $testcase] } {
+	    return 1
+	}
+	if { [string match $ptn $testcase] } {
+	    return 1
+	}
+    }
+    return 0
+}
+
+# Return a list of all selected tests (includes the .exp suffix).
+
+proc find_google3_tests { tests_to_run testsuite_dir } {
+    set result ""
+
+    set testcases [find ${testsuite_dir} "*.exp"]
+
+    foreach testcase $testcases {
+	if [google3_runtest_file_p $tests_to_run $testcase] {
+	    lappend result $testcase
+	}
+    }
+
+    return $result
+}
+
+# Return the names of the cc_binary rules from BUILD_FILE.
+# BUILD_FILE is the path to the blaze BUILD file, which may be in
+# srcfs's READONLY tree.
+#
+# This exists because we can't simply build "all" statically.
+# Blaze will try to link the cc_library objects statically which doesn't
+# work when the inputs are dynamically linked.
+
+proc find_cc_binary_targets { build_file } {
+    catch { exec grep cc_binary $build_file } names
+    regsub -all {cc_binary *\( *name *= *} $names "" names
+    regsub {(.*/google3/)?(.*)/BUILD} $build_file {\2} dir
+    regsub -all {"([^\"]*)" *, *[\n]*} $names "$dir/\\1 " names
+    return $names
+}
+
+# Test config parameters to pass to the sub .exp testcase drivers.
+# The test driver should first fetch the parameters with google3_test_details,
+# and then access the object with td_*.
+#
+# MODE is a bit fuzzy.  Currently its one of opt, dbg, etc. except that
+# many want to make opt orthogonal from dbg, for example.
+
+set _google3_test_details "unset"
+
+proc make_google3_test_details { where cpu build mode blaze_opts } {
+    set td(where) $where
+    set td(cpu) $cpu
+    set td(build) $build
+    set td(mode) $mode
+    set td(blaze_opts) $blaze_opts
+    if { [regexp -- {.*static} $blaze_opts] } {
+	set td(link_mode) "static"
+    } else {
+	set td(link_mode) "dynamic"
+    }
+    return [array get td]
+}
+
+proc google3_test_details { } {
+    global _google3_test_details
+    return $_google3_test_details
+}
+
+# ??? Is there a better way?
+# One can't pass arrays as first class objects.
+
+proc g3td_where { td } {
+    array set atd $td
+    return $atd(where)
+}
+
+proc g3td_cpu { td } {
+    array set atd $td
+    return $atd(cpu)
+}
+
+proc g3td_build { td } {
+    array set atd $td
+    return $atd(build)
+}
+
+proc g3td_mode { td } {
+    array set atd $td
+    return $atd(mode)
+}
+
+proc g3td_blaze_opts { td } {
+    array set atd $td
+    return $atd(blaze_opts)
+}
+
+proc g3td_link_mode { td } {
+    array set atd $td
+    return $atd(link_mode)
+}
+
+# Return a plain-text description of the test details,
+# for use in pass/fail messages to distinguish one flavor from the next.
+
+proc g3td_text { td } {
+    array set atd $td
+    return "$atd(where) $atd(cpu) $atd(build) $atd(mode) $atd(link_mode)"
+}
+
+# Wrapper of blaze_build_target to simplify calling it given "test_details" TD.
+
+proc google3_build_target { td target } {
+    blaze_build_target \
+	[g3td_cpu $td] \
+	[g3td_build $td] \
+	[g3td_mode $td] \
+	[g3td_crosstool_args $td] \
+	[g3td_blaze_opts $td] \
+	$target
+}
+
+# Utility to run the specified testcase.
+# TESTCASE is the path to the .exp file.
+# The rest are passed so that we can make them available to
+# the testcase should it want to know them.
+# We don't pass all config parameters on purpose, the rest can be added as
+# necessary.
+# Static config parameters like BORG_CELL are left to pick up directly.
+
+proc google3_runtest { testcase where cpu build mode blaze_opts } {
+    global _google3_test_details
+
+    set _google3_test_details [make_google3_test_details $where $cpu $build $mode $blaze_opts]
+
+    # We're about to re-enter dejagnu from the top.
+    # We need to unban banned_variables, dejagnu may initially set them.
+    # This reverts the banning done by lib/gdb.exp.
+    global banned_variables
+    foreach banned_var $banned_variables {
+        global "$banned_var"
+        trace remove variable "$banned_var" write error
+    }
+
+    # For now let runtest do all the work.
+    # We're invoking it recursively, but it seems to be ok, this script
+    # (google3.exp) isn't a real testcase.
+    runtest $testcase
+}
+
+# Do an initial pass to see if any tests will be run.
+# We don't want to do a blaze clean or anything unnecessarily.
+#
+# NOTE: Don't "early exit" without cleaning up.
+
+set google3_tests [find_google3_tests ${GOOGLE3_TESTS} [google3_testsuite_source_dir]]
+verbose -log "tests: $google3_tests"
+
+# While IWBN to only build the binaries we need, we want to leave knowledge
+# of what binaries are needed in each test's .exp script, and obtaining that
+# knowledge would add excessive complexity to the process.  Thus such an
+# optimization is left for later, if ever.
+set google3_binaries [find_cc_binary_targets "[google3_testsuite_source_dir]/BUILD"]
+verbose -log "binaries: $google3_binaries"
+
+if { [llength ${google3_tests}] == 0 } {
+    verbose -log "No google3 tests selected."
+} else {
+    # Run the tests.
+
+    foreach cpu $GOOGLE3_CPU {
+	foreach build $GOOGLE3_BUILD {
+	    foreach mode $GOOGLE3_MODE {
+		set extra_opts { "" }
+		if { $GOOGLE3_BUILD != "none" } {
+		    blaze_clean
+		    lappend extra_opts "--linkopt=-static"
+		    if { $mode == "opt" } {
+			# Also test with --copt=-g.
+			# FIXME: What's the efficacy of testing opt w/o -g?
+			lappend extra_opts "--copt=-g" "--copt=-g --linkopt=-static"
+		    }
+		}
+		foreach blaze_opts $extra_opts {
+		    verbose -log "Test config: $cpu $build $mode $blaze_opts"
+		    if { $GOOGLE3_BUILD != "none" } {
+			blaze_build_target $cpu $build $mode $CROSSTOOL_ARGS \
+			    $blaze_opts $google3_binaries
+		    }
+		    foreach where $GOOGLE3_WHERE {
+			foreach testcase $google3_tests {
+			    google3_runtest $testcase $where $cpu $build $mode $blaze_opts
+			}
+		    }
+		}
+	    }
+	}
+    }
+}
+
+# Cleanup.
+
+if { $client_created } {
+    delete_p4_client $GOOGLE3_CLIENT
+}
+
+cd $old_wd

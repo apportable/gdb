@@ -1,0 +1,397 @@
+# Copyright 2009 Google Inc. All Rights Reserved.
+# Author: ppluzhnikov@google.com (Paul Pluzhnikov)
+#
+# Misc helper procedures to set up a new srcfs client, build given targets
+# in it, and clean it up afterwards.
+# Also procedures to wait for task to come up on borg.
+#
+
+# NOTE: Try hard to avoid using env vars to pass parameters to g4.
+# Using them just results in headaches.
+# The exceptions are:
+# P4PASSWD - we don't want to risk exposing it so leave it where it is.
+# P4CONFIG - the only way to pass this to p4 is via an env var.  WTF?
+
+# Name of P4CONFIG file, used if not specified by user.
+# This is non-standard on purpose, catches errors better if the test client
+# is inside another client's tree.
+set P4CONFIG "p4config"
+
+# All client commands should go against the main perforce repository.
+set P4PORT "perforce:1666"
+
+if { ![info exists BLAZE] } {
+    set BLAZE "blaze"
+}
+
+# Initialize the perforce config.
+# This must be called first before any perforce operations.
+
+proc init_perforce { } {
+    global env
+
+    # We need a P4PASSWD, even just to query clients.
+    if { [info exists env(P4PASSWD)] } {
+	# P4PASSWD is present in the environment.
+	# g4 will use it from there; nothing needs to be done.
+    } else {
+	if { [info exists env(P4CONFIG) ] } {
+	    set p4config_name "~/$env(P4CONFIG)"
+	} else {
+	    set p4config_name "~/.p4config"
+	}
+	if { [file readable $p4config_name] } {
+	    set p4config [open $p4config_name "r"]
+	    while {[gets $p4config line] >= 0} {
+		if {[regexp -- "P4PASSWD=(.+)" $line junk pass]} {
+		    set env(P4PASSWD) $pass
+		    break;
+		}
+	    }
+	    close $p4config
+	}
+    }
+    if { ![info exists env(P4PASSWD)] } {
+	error "Unable to find P4PASSWD in the environment or in $p4config_name"
+    }
+
+    # Now that we have P4PASSWD, expunge env vars that can get in our way.
+    # The parameters in the P4CONFIG file take precedence over env vars
+    # like P4PORT, but expunge them anyway to avoid confusion.
+    catch unset env(P4PORT)
+
+    # Unfortunately, the only way to pass P4CONFIG to p4 is via an env var.  WTF?
+    global P4CONFIG
+    if { ![info exists env(P4CONFIG)] } {
+	set env(P4CONFIG) $P4CONFIG
+    }
+}
+
+proc client_exists {client_name} {
+    global P4PORT
+    # Explicitly pass P4PORT in case the build directory is under the
+    # directory where .p4config lives, otherwise the latter will override
+    # the P4PORT env var.
+    if { [catch {exec g4 -p $P4PORT clients -e $client_name} err] } {
+	# Not expected: g4 simply returns empty string
+	# if the client doesn't exist.
+	error "$err"
+    }
+    if { "$err" != "" } {
+	verbose -log "client_exists: $err" 2
+	return 1
+    } else {
+	verbose -log "client_exists: nope" 2
+	return 0
+    }
+}
+
+proc client_top {client_name} {
+    global P4PORT
+    if { [client_exists $client_name] } {
+	# Explicitly pass P4PORT in case the build directory is under the
+	# directory where .p4config lives, otherwise the latter will override
+	# the P4PORT env var.
+	if { [catch {exec g4 -p $P4PORT clients -e $client_name} err] } {
+	    # Not expected
+	    error $err
+	}
+	if { $err == "" } {
+	    error "internal error: $client_name exists, yet doesn't"
+	}
+	# err contains something like:
+	# Client ppluzhnikov-experimental 2009/03/27 root /home/ppluzhnikov/src/ppluzhnikov-experimental 'Created by ppluzhnikov. '
+	set ret [lindex $err 4]
+	if {$ret == ""} {
+	    error "unexpected: unable to extract client top from \"$err\""
+	}
+	return $ret
+    }
+    global GOOGLE_CLIENT_DIR
+    if { [info exists GOOGLE_CLIENT_DIR] } {
+	# If GOOGLE_CLIENT_DIR was specified on command line,
+	# use that value.
+	return $GOOGLE_CLIENT_DIR
+    }
+    return "/export/hda3/tmp/$client_name"
+}
+
+proc catch_exec { args } {
+    verbose -log "+ $args"
+    # Unfortunately, blaze outputs to stderr, and catch considers
+    # that a failure.
+    set result [catch { eval exec $args } err]
+    verbose -log "result: $result; err: \"$err\"" 2
+    return $result
+}
+
+# usage: create_p4_client <client-name> [@CL] [@patch-CL...]
+proc create_p4_client {args} {
+    global env P4PORT
+    set client_name [lindex $args 0]
+    if {[string length $client_name] == 0} {
+	error "Need non-empty P4 client name"
+    }
+    set client_top_dir [client_top $client_name]
+    if { [client_exists $client_name] ||
+	 [file exists $client_top_dir] } {
+	error "$client_top_dir already exists"
+    }
+    file mkdir $client_top_dir
+    cd $client_top_dir
+
+    set f [open $env(P4CONFIG) "w"]
+    puts $f "P4PORT=$P4PORT"
+    puts $f "P4CLIENT=$client_name"
+    puts $f "P4EDITOR=/bin/true"
+    close $f
+
+    catch_exec g4 client
+    set sync_cl 0
+    if {[llength $args] > 1} {
+	set sync_cl [lindex $args 1]
+    }
+    # FIXME: The sandbox can get into a confusing state where the sync below
+    # will do nothing.  This can happen when the sandbox gets blown away
+    # without deleting the perforce client; perforce remembers the sandbox has
+    # been synced.  So when it is created again "g4 sync" is a no-op, leaving
+    # the directory empty.  Blech.
+    if {$sync_cl > 0} {
+	catch_exec g4 sync @$sync_cl
+    } else {
+	catch_exec g4 sync
+    }
+    if { [catch { cd google3 } err] } {
+	# Don't delete so we can diagnose the problem.
+	#catch { file delete -force $client_top_dir }
+	error "cd google3 failed: $err"
+    }
+    catch_exec srcfs login
+    if {$sync_cl > 0} {
+	catch_exec srcfs sync @$sync_cl
+    } else {
+	catch_exec srcfs sync
+    }
+    foreach cl [lrange $args 2 end] {
+	catch_exec g4 patch -c $cl
+    }
+}
+
+# Usage: delete_p4_client <client-name>
+# Does a chdir("/").
+proc delete_p4_client {client_name} {
+    global BLAZE
+    set client_top_dir [client_top $client_name]
+    cd "$client_top_dir/google3"
+    eval catch_exec $BLAZE --blazerc=/dev/null clean
+    eval catch_exec $BLAZE --blazerc=/dev/null shutdown
+    # TODO(ppluzhnikov): clean up checked out files first.
+    cd ${client_top_dir}
+    catch_exec g4 client -d $client_name
+    cd ..
+    exec rm -rf $client_top_dir
+}
+
+# Wrapper to do a blaze build.
+# MODE is one of: dbg, opt, fastbuild, coverage.
+# CPU is one of: piii, k8.
+# BUILD is one of: forge, noforge.
+# EXTRA_OPTS is a string of extra blaze options, e.g. --copt=-g.
+# TARGETS is a list of blaze targets to build, e.g. devtools/gdb/testsuite:protobufs.
+#
+# NOTE: We assume we're in the "google3" directory.
+
+proc blaze_build_target { cpu build mode crosstool_args extra_opts targets } {
+    global BLAZE
+
+    eval catch_exec $BLAZE --blazerc=/dev/null shutdown
+    eval catch_exec $BLAZE --blazerc=/dev/null --batch build -c $mode --cpu $cpu $crosstool_args $extra_opts $targets
+}
+
+# Wrapper to do a blaze clean.
+
+proc blaze_clean { } {
+    catch_exec blaze --blazerc=/dev/null --batch clean
+}
+
+# Wait for the borg task to start responding to /healthz
+
+proc wait_for_healthz_response {slave port} {
+    # FIXME: rpcget itself can potentially block for a long time,
+    # so we could end up waiting a lot longer than 1 minute.
+    set delay 5; # Wait 5s between retries.
+    set max_tries [expr 60 / $delay]; # Wait for up to 1 min.
+    set url "http://$slave:$port/healthz"
+    for {set i 0} {$i < $max_tries} {incr i} {
+	if { [catch { exec rpcget "$url" } err] } {
+	    verbose -log "  rpcget $url ($i): \"$err\""
+	    sleep $delay
+	} else {
+	    # All done
+	    verbose -log "  rpcget $url ($i): /healthz OK"
+	    return
+	}
+    }
+    error "Task did not respond to /healthz after $max_tries tries"
+}
+
+# Wait for the borg task to enter RUN state and start responding to /healthz.
+# The result is "borglet:port" on success.
+# If there is a failure an error is thrown.
+
+proc wait_for_task {job_name cell taskid} {
+    set delay 5; # Wait 5s between retries.
+    set max_tries [expr 120 / $delay]; # Wait for up to 2 min.
+
+    for {set i 0} {$i < $max_tries} {incr i} {
+	verbose -log " Waiting for $job_name ($i) ..."
+	set f [open "| borg --borg=$cell --name=$job_name lookuptask $taskid" "r"]
+	while { [gets $f line] >= 0 } {
+	    verbose -log "  $line" 2
+	    if { [regexp "^Task " $line] } {
+		while { [gets $f line] >= 0 } {
+		    verbose -log "  $line" 2
+		    if { [regexp "state: \"(.+)\"" $line junk state] } {
+			verbose -log "   STATE: $state"
+			if {$state == "RUN"} {
+			    # The task is running; see if we can get /varz from it
+			    set slave ""
+			    set port ""
+			    while {$slave == "" || $port == ""} {
+				if { [gets $f line] < 0 } {
+				    error "unable to find slave/port (slave: $slave, port: $port)"
+				}
+				verbose -log "  $line" 2
+				if { [regexp "slave: \"(.+):.*\"" $line junk slave] } continue
+				regexp "port: (.+)" $line junk port
+			    }
+			    verbose -log "   SLAVE: $slave, PORT: $port"
+			    catch {close $f}
+			    wait_for_healthz_response $slave $port
+			    return "${slave}:${port}"
+			} elseif {$state == "FAILURE"} {
+			    error "task failed: $line"
+			} else {
+			    break
+			}
+		    }
+		}
+	    }
+	}
+	close $f
+	sleep $delay
+    }
+    error "Task did not enter RUN state in $max_tries tries"
+}
+
+# Return remote debug port (for GDB "target remote ..." command).
+proc get_remote_debug_port {job_name cell taskid} {
+    catch { exec borg --borg=$cell --name=$job_name --printrunintaskreply=true -- runintask 0 /bin/echo } err
+    verbose -log "  get_remote_debug_port: \"$err\"" 2
+    if { [regexp {borglet:([^ ]+)} $err junk borglet] } {
+	# There is no easy way to access the debug port :-(
+	catch { exec borg --borg=$cell stderr "${job_name}/0" } err
+	verbose -log "  get_remote_debug_port: \"$err\""
+	if { [regexp {Listening on port ([0-9]+)} $err junk port] } {
+	    return "$borglet:$port"
+	}
+    }
+    return ""
+}
+
+# Return a boolean indicating if gdb has python support.
+# NOTE: This must be called before gdb has started, it will
+# terminate any already-running gdb.
+
+proc gdb_has_python_support { } {
+    global gdb_prompt
+    global GDB_HAS_PYTHON_SUPPORT
+
+    if ![info exists GDB_HAS_PYTHON_SUPPORT] {
+	gdb_exit
+	gdb_start
+
+	gdb_test_multiple "python print 'hello, world!'" "verify python support" {
+	    -re "not supported.*$gdb_prompt $" {
+		verbose -log "python support is disabled"
+		set GDB_HAS_PYTHON_SUPPORT 0
+	    }
+	    -re "Undefined command:.*$gdb_prompt $" {
+		verbose -log "GDB too old for python support"
+		set GDB_HAS_PYTHON_SUPPORT 0
+	    }
+	    -re "$gdb_prompt $" {
+		set GDB_HAS_PYTHON_SUPPORT 1
+	    }
+	}
+	if ![info exists GDB_HAS_PYTHON_SUPPORT] {
+	    error "unexpected output from python print"
+	}
+
+	gdb_exit
+    }
+
+    return $GDB_HAS_PYTHON_SUPPORT
+}
+
+# Check whether the system config (system.gdbinit) has been run,
+# and if not run it.
+#
+# When testing the installed GDB (e.g., /usr/bin/gdb64):
+# We want to pick up the installed system config
+# (e.g., pretty-printers from /usr/share/gdb/...).
+# This is achieved by requiring the testsuite to be run without
+# passing -nx to GDB and by passing USE_INSTALLED_TREE=yes.
+# The catch is that we still need to disable the loading of ~/.gdbinit.
+# This is done by also requiring pointing $HOME at some place without
+# a .gdbinit.
+#
+# When testing the GDB in the build tree:
+# We want to pick up the config in the staged copy of the data-directory tree.
+
+proc check_system_config { } {
+    global USE_INSTALLED_TREE
+    if { [info exists USE_INSTALLED_TREE] && "$USE_INSTALLED_TREE" == "yes" } {
+	verbose -log "Assuming system config already installed."
+    } else {
+	verbose -log "Installing system config from build tree."
+	install_build_system_config
+    }
+}
+
+# Install the system config in the staged copy of the data-directory tree.
+
+proc install_build_system_config {} {
+    global BUILD_DATA_DIRECTORY gdb_prompt
+    set test_name "load system.gdbinit"
+    gdb_test_multiple "source $BUILD_DATA_DIRECTORY/system.gdbinit" $test_name {
+	-re "Traceback.*$gdb_prompt $" {
+	    fail $test_name
+	}
+	-re "$gdb_prompt $" {
+	    pass $test_name
+	}
+    }
+}
+
+# Call at the start of each google test to start and initialize gdb.
+# Its main function is to ensure system.gdbinit has been run.
+
+proc google_gdb_start { } {
+    gdb_exit
+    gdb_start
+    check_system_config
+}
+
+# Same as google_gdb_start but load PROGRAM too.
+
+proc google_gdb_start_and_load { program } {
+    google_gdb_start
+    gdb_load $program
+}
+
+# Call at the end of google_gdb_start tests to clean up.
+
+proc google_gdb_exit { } {
+    gdb_exit
+}

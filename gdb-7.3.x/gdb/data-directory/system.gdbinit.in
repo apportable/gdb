@@ -1,0 +1,28 @@
+# This file is a Google-wide .gdbinit file loaded by gdb{32,64}-devel.
+# Contact gdb-team for details.
+
+# Speed up some gdb operations when working with gdbserver.
+# This tells gdb it can use the contents of read-only sections
+# from local copies of binaries instead of having to read target memory.
+# FIXME: Sigh.  This slows down getting to main because target_section_by_addr
+# does a linear scan over all sections, and is called for each
+# target_read_partial.  Disabled for now.  http://b/1935021
+#set trust-readonly on
+
+# The rest of this file is written in python.
+python
+
+# Register the standard set of pretty printers.
+from libstdcxx.v6.printers import register_libstdcxx_printers
+register_libstdcxx_printers (None)
+
+# TODO(dje): Only do this for google3 code.
+# Most/all google3 pretty-printers are moving to google3 anyway.
+from google.google3.printers import register_google3_printers
+register_google3_printers (None)
+
+# If we're in a google3 tree, ensure google3 is in the source directory
+# search list.  http://wiki/Main/GdbFaq#blaze/srcfs
+# Also, change various defaults for working with google3 code.
+from google.google3.utils import maybe_add_google3_settings
+maybe_add_google3_settings ()
