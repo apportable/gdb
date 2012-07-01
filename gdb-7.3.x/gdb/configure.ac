@@ -324,6 +324,8 @@ if test x"$enable_libunwind" = xyes; then
   CONFIG_SRCS="$CONFIG_SRCS libunwind-frame.c"
 fi
 
+AC_CHECK_HEADERS(syslog.h)
+
 opt_curses=no
 AC_ARG_WITH(curses, AS_HELP_STRING([--with-curses], [use the curses library instead of the termcap library]), opt_curses=$withval)
 

@@ -8201,6 +8201,19 @@ $as_echo "#define HAVE_LIBUNWIND 1" >>confdefs.h
   CONFIG_SRCS="$CONFIG_SRCS libunwind-frame.c"
 fi
 
+for ac_header in syslog.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "syslog.h" "ac_cv_header_syslog_h" "$ac_includes_default"
+if test "x$ac_cv_header_syslog_h" = x""yes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_SYSLOG_H 1
+_ACEOF
+
+fi
+
+done
+
+
 opt_curses=no
 
 # Check whether --with-curses was given.

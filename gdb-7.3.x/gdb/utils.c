@@ -693,6 +693,7 @@ report_command_stats (void *arg)
 
   /* This is GOOGLE LOCAL code, which is easier to maintain if it's
      a pure addition.  That is why we duplicate some of the above.  */
+#if defined(HAVE_SYSLOG_H) && defined(HAVE_SBRK)
   if (usage_log_enabled ()
       /* We get here for comments too, ignore them.  */
       && start_stats->command != NULL
@@ -715,6 +716,7 @@ report_command_stats (void *arg)
 			space_now, space_diff >= 0 ? "+" : "", space_diff,
 			start_stats->command);
     }
+#endif /* defined(HAVE_SYSLOG_H) && defined(HAVE_SBRK) */
   /* END GOOGLE LOCAL */
 }
 

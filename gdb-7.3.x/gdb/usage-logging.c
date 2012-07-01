@@ -20,6 +20,8 @@
    This is written with the possibility that several ways of logging
    may be chosen from.  For now we just use syslog.  */
 
+#include "config.h"
+#ifdef HAVE_SYSLOG_H
 #define _GNU_SOURCE /* for vasprintf */
 #include <limits.h>
 #include <sys/stat.h>
@@ -617,3 +619,29 @@ usage_log_printf (const char *msg, ...)
       va_end (args);
     }
 }
+#else
+/* Disabled for Windows which doesn't provide syslog.h upon which logging service
+   depends.  Note that usage-logging isn't upstreamed yet */
+
+int usage_log_enabled (void)
+{
+    return 0;
+}
+
+void usage_log_start (int argc, char **argv)
+{
+}
+
+void usage_log_end (int exit_code)
+{
+}
+
+void usage_log_printf (const char *msg, ...)
+{
+}
+
+void usage_log_flush (void)
+{
+}
+
+#endif
