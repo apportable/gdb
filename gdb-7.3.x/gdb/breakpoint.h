@@ -224,6 +224,11 @@ struct bp_target_info
   /* Address space at which the breakpoint was placed.  */
   struct address_space *placed_address_space;
 
+  /* Address at which the breakpoint was requested.  This is normally NULL
+   * unless needed for architectural considerations, in which case it should
+   * be the same as REQUESTED_ADDRESS from the bp_location.  */
+  CORE_ADDR requested_address;
+
   /* Address at which the breakpoint was placed.  This is normally the
      same as ADDRESS from the bp_location, except when adjustment
      happens in gdbarch_breakpoint_from_pc.  The most common form of

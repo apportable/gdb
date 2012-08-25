@@ -46,10 +46,14 @@ default_memory_insert_breakpoint (struct gdbarch *gdbarch,
 {
   int val;
   const unsigned char *bp;
+  CORE_ADDR pc_addr;
 
   /* Determine appropriate breakpoint contents and size for this address.  */
+  pc_addr = bp_tgt->requested_address ?
+      bp_tgt->requested_address :
+      bp_tgt->placed_address;
   bp = gdbarch_breakpoint_from_pc
-       (gdbarch, &bp_tgt->placed_address, &bp_tgt->placed_size);
+       (gdbarch, &pc_addr, &bp_tgt->placed_size);
   if (bp == NULL)
     error (_("Software breakpoints not implemented for this target."));
 

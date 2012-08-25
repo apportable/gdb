@@ -1566,8 +1566,9 @@ enable_break (struct svr4_info *info, int from_tty)
   if (sym_addr != 0)
     {
       struct obj_section *os;
+      CORE_ADDR lean_sym_addr;
 
-      sym_addr = gdbarch_addr_bits_remove
+      lean_sym_addr = gdbarch_addr_bits_remove
 	(target_gdbarch, gdbarch_convert_from_func_ptr_addr (target_gdbarch,
 							     sym_addr,
 							     &current_target));
@@ -1582,16 +1583,14 @@ enable_break (struct svr4_info *info, int from_tty)
 	 On ARM we need to know whether the ISA of rtld_db_dlactivity (or
 	 however it's spelled in your particular system) is ARM or Thumb.
 	 That knowledge is encoded in the address, if it's Thumb the low bit
-	 is 1.  However, we've stripped that info above and it's not clear
-	 what all the consequences are of passing a non-addr_bits_remove'd
-	 address to create_solib_event_breakpoint.  The call to
-	 find_pc_section verifies we know about the address and have some
-	 hope of computing the right kind of breakpoint to use (via
-	 symbol info).  It does mean that GDB needs to be pointed at a
-	 non-stripped version of the dynamic linker in order to obtain
-	 information it already knows about.  Sigh.  */
+	 is 1.  However, we've removed that info above for the purpose of
+	 scanning the PC sections.  Because GDB might not have access to
+	 a non-stripped version of the dynamic linker, be sure to pass
+	 the original non-addr_bits_remove'd 'sym_addr' to
+	 create_solib_event_breakpoint(), so that it correctly places
+	 the right kind of breakpoint (ARM or Thumb). */
 
-      os = find_pc_section (sym_addr);
+      os = find_pc_section (lean_sym_addr);
       if (os != NULL)
 	{
 	  /* Record the relocated start and end address of the dynamic linker

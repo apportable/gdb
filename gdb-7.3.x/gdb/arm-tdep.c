@@ -5142,7 +5142,7 @@ arm_adjust_breakpoint_address (struct gdbarch *gdbarch, CORE_ADDR bpaddr)
   map_type = arm_find_mapping_symbol (bpaddr, &boundary);
   if (map_type == 0)
     /* Thumb-2 code must have mapping symbols to have a chance.  */
-    return bpaddr;
+    return gdbarch_addr_bits_remove (gdbarch, bpaddr);
 
   bpaddr = gdbarch_addr_bits_remove (gdbarch, bpaddr);
 
