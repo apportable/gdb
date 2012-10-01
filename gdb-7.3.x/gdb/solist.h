@@ -2,6 +2,8 @@
    Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000,
    2001, 2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
 
+   Copyright (C) 2011, NVIDIA CORPORATION.  All rights reserved.
+
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
@@ -99,6 +101,10 @@ struct target_so_ops
     /* Do additional symbol handling, lookup, etc. after symbols
        for a shared object have been loaded.  */
     void (*special_symbol_handling) (void);
+
+    /* If non-NULL, return 1 if list of currently loaded shared objects can
+     * be read.  */
+    int (*can_read_current_sos) (void);
 
     /* Construct a list of the currently loaded shared objects.  */
     struct so_list *(*current_sos) (void);

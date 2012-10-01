@@ -2,6 +2,8 @@
 
    Copyright (C) 2009, 2010, 2011 Free Software Foundation, Inc.
 
+   Copyright (C) 2011, NVIDIA CORPORATION.  All rights reserved.
+
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
@@ -449,6 +451,7 @@ _initialize_darwin_solib (void)
   darwin_so_ops.clear_solib = darwin_clear_solib;
   darwin_so_ops.solib_create_inferior_hook = darwin_solib_create_inferior_hook;
   darwin_so_ops.special_symbol_handling = darwin_special_symbol_handling;
+  darwin_so_ops.can_read_current_sos = NULL;
   darwin_so_ops.current_sos = darwin_current_sos;
   darwin_so_ops.open_symbol_file_object = open_symbol_file_object;
   darwin_so_ops.in_dynsym_resolve_code = darwin_in_dynsym_resolve_code;

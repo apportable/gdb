@@ -3,6 +3,8 @@
    Copyright (C) 2004, 2005, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
+   Copyright (C) 2011, NVIDIA CORPORATION.  All rights reserved.
+
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
@@ -806,6 +808,7 @@ _initialize_som_solib (void)
   som_so_ops.clear_solib = som_clear_solib;
   som_so_ops.solib_create_inferior_hook = som_solib_create_inferior_hook;
   som_so_ops.special_symbol_handling = som_special_symbol_handling;
+  som_so_ops.can_read_current_sos = NULL;
   som_so_ops.current_sos = som_current_sos;
   som_so_ops.open_symbol_file_object = som_open_symbol_file_object;
   som_so_ops.in_dynsym_resolve_code = som_in_dynsym_resolve_code;

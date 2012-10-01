@@ -2,6 +2,8 @@
 
    Copyright (C) 2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
 
+   Copyright (C) 2011, NVIDIA CORPORATION.  All rights reserved.
+
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
@@ -489,6 +491,7 @@ _initialize_solib_target (void)
     = solib_target_solib_create_inferior_hook;
   solib_target_so_ops.special_symbol_handling
     = solib_target_special_symbol_handling;
+  solib_target_so_ops.can_read_current_sos = NULL;
   solib_target_so_ops.current_sos = solib_target_current_sos;
   solib_target_so_ops.open_symbol_file_object
     = solib_target_open_symbol_file_object;
