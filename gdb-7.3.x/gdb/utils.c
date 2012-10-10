@@ -59,7 +59,9 @@
 #include "gdbcore.h"
 #include "top.h"
 #include "main.h"
+#include "solist.h"
 #include "usage-logging.h"
+
 #include "inferior.h"		/* for signed_pointer_to_address */
 
 #include <sys/param.h>		/* For MAXPATHLEN */
@@ -429,6 +431,24 @@ make_cleanup_restore_ui_file (struct ui_file **variable)
   c->value = *variable;
 
   return make_cleanup_dtor (do_restore_ui_file, (void *) c, xfree);
+}
+
+/* Helper for make_cleanup_free_so.  */
+
+static void
+do_free_so (void *arg)
+{
+  struct so_list *so = arg;
+
+  free_so (so);
+}
+
+/* Make cleanup handler calling free_so for SO.  */
+
+struct cleanup *
+make_cleanup_free_so (struct so_list *so)
+{
+  return make_my_cleanup (&cleanup_chain, do_free_so, so);
 }
 
 struct cleanup *

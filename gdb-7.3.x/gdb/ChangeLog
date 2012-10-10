@@ -66,6 +66,43 @@
 	* NEWS: Document python gdb.printing.register_pretty_printer's new
 	`replace' parameter.
 
+2011-10-14  Jan Kratochvil  <jan.kratochvil@redhat.com>
+
+	Drop lazy lm_info reading.
+	* solib-svr4.c (struct lm_info): Remove field lm.  New fields l_addr_p,
+	l_addr_inferior, l_ld, l_next, l_prev and l_name.
+	(lm_info_read): New function.
+	(lm_addr_from_link_map, lm_dynamic_from_link_map): Remove.
+	(lm_addr_check): Use l_addr_p.  No longer use lm_addr_from_link_map and
+	lm_dynamic_from_link_map.
+	(lm_next, lm_prev, lm_name): Remove.
+	(svr4_keep_data_in_core): Use lm_info_read, drop the lm_info entries
+	initialization incl. read_memory.  No longer use lm_name.
+	(svr4_free_so): Drop lm_info->lm freeing.
+	(svr4_default_sos): Initialize lminfo with zeroes.  Use l_addr_p.  Drop
+	explicit lm_addr and lm initialization.
+	(svr4_read_so_list): Use lm_info_read, drop the initailization of
+	fields by hand, incl. read_memory.  No longer use lm_next, lm_prev and
+	lm_name.
+
+2011-10-14  Jan Kratochvil  <jan.kratochvil@redhat.com>
+	    Paul Pluzhnikov  <ppluzhnikov@google.com>
+
+	* defs.h (struct so_list): New forward declaration.
+	(make_cleanup_free_so): New declaration.
+	* solib-svr4.c (ignore_first_link_map_entry): Remove.
+	(svr4_free_so): Move the function here from downwards.  Handle NULL
+	so->lm_info.
+	(svr4_free_library_list): New.
+	(svr4_read_so_list): New, moved here code from svr4_current_sos.
+	Use more cleanups.  Use new parameter ignore_first instead of
+	ignore_first_link_map_entry.
+	(svr4_current_sos): New variable ignore_first, initialize it.  New
+	variable back_to, use it for svr4_free_library_list protection.
+	(svr4_free_so): Remove - move upwards.
+	* utils.c: Include solist.h.
+	(do_free_so, make_cleanup_free_so): New functions.
+
 2011-10-11  Sterling Augustine  <saugustine@google.com>
 
 	* dwarf2read.c (partial_die_parent_scope): Rearrange conditional
