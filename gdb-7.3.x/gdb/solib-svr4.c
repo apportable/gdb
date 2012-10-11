@@ -1193,7 +1193,7 @@ svr4_parse_libraries (const char *document, struct svr4_library_list *list)
 
   memset (list, 0, sizeof (*list));
   list->tailp = &list->head;
-  if (gdb_xml_parse_quick (_("target library list"), "library-list.dtd",
+  if (gdb_xml_parse_quick (_("target library list"), "library-list-svr4.dtd",
 			   svr4_library_list_elements, document, list) == 0)
     {
       /* Parsed successfully, keep the result.  */
@@ -1396,22 +1396,34 @@ svr4_current_sos (void)
   int ignore_first;
   struct svr4_library_list library_list;
 
+  info = get_svr4_info ();
+
+  /* Always locate the debug struct, in case it has moved.
+     Note that enable_break() relies upon this function successfully
+     obtaining debug_base, so that it can find the linker's
+     solib breakpoint. */
+  info->debug_base = 0;
+  locate_base (info);
+
   if (svr4_current_sos_via_xfer_libraries (&library_list))
     {
       if (library_list.main_lm)
-	{
-	  info = get_svr4_info ();
-	  info->main_lm_addr = library_list.main_lm;
-	}
+	info->main_lm_addr = library_list.main_lm;
+      else if (!exec_bfd || bfd_get_section_by_name (exec_bfd, ".dynamic") != NULL)
+        {
+          /* we should ignore the first item in the list, other than
+             recording main_lm_addr */
+          struct so_list *delete;
+
+          info->main_lm_addr = library_list.head->lm_info->lm_addr;
+
+          delete = library_list.head;
+          library_list.head = library_list.head->next;
+          svr4_free_so (delete);
+        }
 
       return library_list.head ? library_list.head : svr4_default_sos ();
     }
-
-  info = get_svr4_info ();
-
-  /* Always locate the debug struct, in case it has moved.  */
-  info->debug_base = 0;
-  locate_base (info);
 
   /* If we can't find the dynamic linker's base structure, this
      must not be a dynamically linked executable.  Hmm.  */

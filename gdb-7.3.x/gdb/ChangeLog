@@ -1,3 +1,11 @@
+2012-10-24  Ryan V. Bissell <rbissell@nvidia.com>
+
+	* solib-svr4.c (svr4_parse_libraries): update dtd filename
+	(svr4_current_sos): obtain info->debug_base before returning with
+	library_list.head.  If there is a ".dynamic" section, use
+	library_list.head->lm_info->lm_addr as the main_lm_addr, then
+	remove library_list.head from the list. (Android/Bionic support)
+
 2011-12-15  Doug Evans  <dje@google.com>
 
 	* exceptions.c (catcher_list_size): New function.
