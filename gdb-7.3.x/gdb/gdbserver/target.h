@@ -374,8 +374,10 @@ struct target_ops
      Returns NULL if bytecode compilation is not supported.  */
   struct emit_ops *(*emit_ops) (void);
 
-  /* Refresh ALL_DLLS.  */
-  void (*refresh_libraries) (void);
+  /* Read solib info on SVR4 platforms.  */
+  int (*qxfer_libraries_svr4) (const char *annex, unsigned char *readbuf,
+			       unsigned const char *writebuf,
+			       CORE_ADDR offset, int len);
 };
 
 extern struct target_ops *the_target;

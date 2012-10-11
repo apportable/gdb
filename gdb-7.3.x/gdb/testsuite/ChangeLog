@@ -6,6 +6,11 @@
 	(gdbserver_start): Call gdb,get_remote_address to compute argument
 	to "target remote" command.
 
+2011-12-02  Jan Kratochvil  <jan.kratochvil@redhat.com>
+
+	* gdb.base/solib-corrupted.exp: Suppress test on is_remote target.
+	(corrupted list): Adjust the expectation.
+	
 2011-11-21  Doug Evans  <dje@google.com>
 
 	* gdb.cp/nextoverthrow.exp: Skip test if debug info for
