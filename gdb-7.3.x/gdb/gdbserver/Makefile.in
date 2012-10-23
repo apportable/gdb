@@ -233,13 +233,13 @@ clean-info:
 
 gdbserver$(EXEEXT): $(OBS) ${ADD_DEPS} ${CDEPS}
 	rm -f gdbserver$(EXEEXT)
-	${CC-LD} $(INTERNAL_CFLAGS) $(INTERNAL_LDFLAGS) -o gdbserver$(EXEEXT) $(OBS) \
-	  $(GDBSERVER_LIBS) $(XM_CLIBS)
+	${CC-LD} $(INTERNAL_CFLAGS) $(OBS) $(GDBSERVER_LIBS) $(XM_CLIBS) \
+          $(INTERNAL_LDFLAGS) -o gdbserver$(EXEEXT)
 
 gdbreplay$(EXEEXT): $(GDBREPLAY_OBS)
 	rm -f gdbreplay$(EXEEXT)
-	${CC-LD} $(INTERNAL_CFLAGS) $(INTERNAL_LDFLAGS) -o gdbreplay$(EXEEXT) $(GDBREPLAY_OBS) \
-	  $(XM_CLIBS)
+	${CC-LD} $(INTERNAL_CFLAGS) -o gdbreplay$(EXEEXT) $(GDBREPLAY_OBS) \
+          $(XM_CLIBS) $(INTERNAL_LDFLAGS)
 
 IPA_OBJS=tracepoint-ipa.o utils-ipa.o regcache-ipa.o remote-utils-ipa.o ${IPA_DEPFILES}
 

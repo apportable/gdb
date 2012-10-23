@@ -4,7 +4,7 @@ sinclude(../../bfd/bfd.m4)
 AC_DEFUN([SRV_CHECK_THREAD_DB],
 [AC_CACHE_CHECK([for libthread_db],[srv_cv_thread_db],
  [old_LIBS="$LIBS"
-  LIBS="$LIBS -lthread_db"
+  LIBS="$LIBS -lthread_db -lc"
   AC_TRY_LINK(
   [void ps_pglobal_lookup() {}
    void ps_pdread() {}

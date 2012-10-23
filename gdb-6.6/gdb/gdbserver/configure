@@ -3657,7 +3657,7 @@ if test "${srv_cv_thread_db+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
 else
   old_LIBS="$LIBS"
-  LIBS="$LIBS -lthread_db"
+  LIBS="$LIBS -lthread_db -lc"
   cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
