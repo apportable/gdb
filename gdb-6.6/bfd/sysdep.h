@@ -131,7 +131,9 @@ extern PTR realloc ();
 #endif
 
 #if !HAVE_DECL_STPCPY
+#if !__APPLE__
 extern char *stpcpy (char *__dest, const char *__src);
+#endif
 #endif
 
 #if !HAVE_DECL_STRSTR
