@@ -36,5 +36,6 @@ extern int return_child_result;
 extern int return_child_result_value;
 extern int batch_silent;
 extern int batch_flag;
+extern char *gdb_program_name;
 
 #endif
