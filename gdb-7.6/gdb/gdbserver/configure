@@ -5684,7 +5684,7 @@ rm -f core conftest.err conftest.$ac_objext \
     { $as_echo "$as_me:${as_lineno-$LINENO}: result: $found" >&5
 $as_echo "$found" >&6; }
   else
-    srv_libs="-lthread_db"
+    srv_libs="-lthread_db -lc"
   fi
 
   srv_thread_depfiles="thread-db.o proc-service.o"
@@ -5725,7 +5725,7 @@ fi
 # Check whether --with-libthread-db was given.
 if test "${with_libthread_db+set}" = set; then :
   withval=$with_libthread_db; srv_libthread_db_path="${withval}"
-  srv_libs="$srv_libthread_db_path"
+  srv_libs="$srv_libthread_db_path -lc"
 
 fi
 

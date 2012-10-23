@@ -346,7 +346,7 @@ if test "$srv_linux_thread_db" = "yes"; then
     LDFLAGS="$old_LDFLAGS"
     AC_MSG_RESULT($found)
   else
-    srv_libs="-lthread_db"
+    srv_libs="-lthread_db -lc"
   fi
 
   srv_thread_depfiles="thread-db.o proc-service.o"
@@ -363,7 +363,7 @@ fi
 AC_ARG_WITH(libthread-db,
 AS_HELP_STRING([--with-libthread-db=PATH], [use given libthread_db directly]),
 [srv_libthread_db_path="${withval}"
-  srv_libs="$srv_libthread_db_path"
+  srv_libs="$srv_libthread_db_path -lc"
 ])
 
 if test "$srv_libs" != "" -a "$srv_libs" != "-ldl"; then
