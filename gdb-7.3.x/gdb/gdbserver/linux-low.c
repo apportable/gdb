@@ -110,6 +110,36 @@
 #endif
 #endif
 
+#ifndef HAVE_ELF32_AUXV_T
+/* Copied from glibc's elf.h.  */
+typedef struct
+{
+  uint32_t a_type;		/* Entry type */
+  union
+    {
+      uint32_t a_val;		/* Integer value */
+      /* We use to have pointer elements added here.  We cannot do that,
+	 though, since it does not work when using 32-bit definitions
+	 on 64-bit platforms and vice versa.  */
+    } a_un;
+} Elf32_auxv_t;
+#endif
+
+#ifndef HAVE_ELF64_AUXV_T
+/* Copied from glibc's elf.h.  */
+typedef struct
+{
+  uint64_t a_type;		/* Entry type */
+  union
+    {
+      uint64_t a_val;		/* Integer value */
+      /* We use to have pointer elements added here.  We cannot do that,
+	 though, since it does not work when using 32-bit definitions
+	 on 64-bit platforms and vice versa.  */
+    } a_un;
+} Elf64_auxv_t;
+#endif
+
 /* ``all_threads'' is keyed by the LWP ID, which we use as the GDB protocol
    representation of the thread ID.
 
@@ -3816,7 +3846,7 @@ regsets_fetch_inferior_registers (struct regcache *regcache)
 	data = buf;
 
 #ifndef __sparc__
-      res = ptrace (regset->get_request, pid, nt_type, data);
+      res = ptrace (regset->get_request, pid, (PTRACE_ARG3_TYPE)nt_type, data);
 #else
       res = ptrace (regset->get_request, pid, data, nt_type);
 #endif
@@ -3889,7 +3919,7 @@ regsets_store_inferior_registers (struct regcache *regcache)
 	data = buf;
 
 #ifndef __sparc__
-      res = ptrace (regset->get_request, pid, nt_type, data);
+      res = ptrace (regset->get_request, pid, (PTRACE_ARG3_TYPE)nt_type, data);
 #else
       res = ptrace (regset->get_request, pid, &iov, data);
 #endif
@@ -3901,7 +3931,7 @@ regsets_store_inferior_registers (struct regcache *regcache)
 
 	  /* Only now do we write the register set.  */
 #ifndef __sparc__
-	  res = ptrace (regset->set_request, pid, nt_type, data);
+	  res = ptrace (regset->set_request, pid, (PTRACE_ARG3_TYPE)nt_type, data);
 #else
 	  res = ptrace (regset->set_request, pid, data, nt_type);
 #endif
