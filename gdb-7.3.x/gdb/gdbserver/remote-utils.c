@@ -61,9 +61,11 @@
 #if HAVE_ERRNO_H
 #include <errno.h>
 #endif
-
 #if USE_WIN32API
 #include <winsock2.h>
+#endif
+#if HAVE_SYS_UN_H
+#include <sys/un.h>
 #endif
 
 #if __QNX__
@@ -240,6 +242,45 @@ remote_open (char *name)
 {
   char *port_str;
 
+#ifdef HAVE_SYS_UN_H
+  if (name[0] == '+')
+    {
+#ifdef USE_WIN32API
+      error ("Only <host>:<port> is supported on this platform.");
+#else
+      struct sockaddr_un sockaddr;
+      socklen_t sockaddrlen;
+
+      name += 1; // skip the initial +
+
+      listen_desc = socket (AF_UNIX, SOCK_STREAM, 0);
+      if (listen_desc < 0)
+        perror_with_name ("Could not create Unix-domain socket");
+
+      memset (&sockaddr, 0, sizeof sockaddr);
+      sockaddr.sun_family = AF_UNIX;
+      strlcpy(sockaddr.sun_path, name, sizeof sockaddr.sun_path);
+
+      unlink (sockaddr.sun_path);
+      sockaddrlen = sizeof(sockaddr.sun_family) + strlen(sockaddr.sun_path) + 1;
+      if (bind (listen_desc, (struct sockaddr *)&sockaddr, sockaddrlen) < 0)
+        perror_with_name ("Could not bind to Unix-domain socket");
+      if (listen (listen_desc, 1) < 0)
+        perror_with_name ("Could not listen to Unix-domain socket");
+
+      fprintf (stderr, "Listening on Unix socket %s\n", sockaddr.sun_path);
+      fflush (stderr);
+
+      /* Register the event loop handler.  */
+      add_file_handler (listen_desc, handle_accept_event, NULL);
+
+      transport_is_reliable = 1;
+#endif
+    }
+  else
+#endif /* HAVE_SYS_UN_H */
+  {
+
   port_str = strchr (name, ':');
 
   if (remote_connection_is_stdio (name))
@@ -392,6 +433,7 @@ remote_open (char *name)
 
       transport_is_reliable = 1;
     }
+  }
 }
 
 void
