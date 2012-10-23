@@ -27,7 +27,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
    to not think the process has died (so it can be debugged at the point of
    failure).  */
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 #ifndef SIGTRAP
 #define SIGTRAP 5
 #endif
