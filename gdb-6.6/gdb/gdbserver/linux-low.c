@@ -778,6 +778,18 @@ kill_lwp (unsigned long lwpid, int signo)
       errno = 0;
       tkill_failed = 1;
     }
+#elif defined(__ANDROID__)
+  extern int tkill(int, int);
+  if (!tkill_failed)
+    {
+      int ret = tkill(lwpid, signo);
+      if (errno != ENOSYS)
+        return ret;
+      errno = 0;
+      tkill_failed = 1;
+    }
+#else
+#  error SIGNAL HANDLING WILL NOT WORK!!
 #endif
 
   return kill (lwpid, signo);
