@@ -21,6 +21,12 @@
 # Include global overrides and fixes for Autoconf.
 m4_include(../../config/override.m4)
 sinclude([../../config/zlib.m4])
+m4_include([../../config/plugins.m4])
+m4_include([../../libtool.m4])
+m4_include([../../ltoptions.m4])
+m4_include([../../ltsugar.m4])
+m4_include([../../ltversion.m4])
+m4_include([../../lt~obsolete.m4])
 
 AC_DEFUN([SIM_AC_COMMON],
 [

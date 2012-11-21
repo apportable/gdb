@@ -58,6 +58,21 @@ AC_CHECK_LIB(nsl, gethostbyname)
 # using the same condition.
 AM_ZLIB
 
+# BFD uses libdl when when plugins enabled.
+AC_PLUGINS
+dnl AM_CONDITIONAL(PLUGINS, test "$plugins" = yes)
+if test x${plugins} = xyes ; then
+  PLUGINS_TRUE=''
+  PLUGINS_FALSE='#'
+else
+  PLUGINS_TRUE='#'
+  PLUGINS_FALSE=''
+fi
+AC_SUBST(PLUGINS_TRUE)
+AC_SUBST(PLUGINS_FALSE)
+LT_INIT([dlopen])
+AC_SUBST(lt_cv_dlopen_libs)
+
 . ${srcdir}/../../bfd/configure.host
 
 dnl Standard (and optional) simulator options.
