@@ -219,6 +219,7 @@ struct gdbarch
   gdbarch_convert_from_func_ptr_addr_ftype *convert_from_func_ptr_addr;
   gdbarch_addr_bits_remove_ftype *addr_bits_remove;
   gdbarch_smash_text_address_ftype *smash_text_address;
+  gdbarch_isatized_symbol_value_ftype *isatized_symbol_value;
   gdbarch_software_single_step_ftype *software_single_step;
   gdbarch_single_step_through_delay_ftype *single_step_through_delay;
   gdbarch_print_insn_ftype *print_insn;
@@ -371,6 +372,7 @@ struct gdbarch startup_gdbarch =
   convert_from_func_ptr_addr_identity,  /* convert_from_func_ptr_addr */
   core_addr_identity,  /* addr_bits_remove */
   core_addr_identity,  /* smash_text_address */
+  core_addr_identity,  /* isatized_symbol_value */
   0,  /* software_single_step */
   0,  /* single_step_through_delay */
   0,  /* print_insn */
@@ -2798,6 +2800,23 @@ set_gdbarch_addr_bits_remove (struct gdbarch *gdbarch,
                               gdbarch_addr_bits_remove_ftype addr_bits_remove)
 {
   gdbarch->addr_bits_remove = addr_bits_remove;
+}
+
+CORE_ADDR
+gdbarch_isatized_symbol_value(struct gdbarch *gdbarch, asymbol *sym)
+{
+  gdb_assert (gdbarch != NULL);
+  gdb_assert (gdbarch->isatized_symbol_value != NULL);
+  if (gdbarch_debug >= 2)
+    fprintf_unfiltered (gdb_stdlog, "gdbarch_isatized_symbol_value called\n");
+  return gdbarch->isatized_symbol_value (gdbarch, sym);
+}
+
+void
+set_gdbarch_isatized_symbol_value (struct gdbarch *gdbarch,
+                              gdbarch_isatized_symbol_value_ftype isatized_symbol_value)
+{
+  gdbarch->isatized_symbol_value = isatized_symbol_value;
 }
 
 CORE_ADDR

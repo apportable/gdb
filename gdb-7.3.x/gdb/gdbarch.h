@@ -563,6 +563,14 @@ typedef CORE_ADDR (gdbarch_smash_text_address_ftype) (struct gdbarch *gdbarch, C
 extern CORE_ADDR gdbarch_smash_text_address (struct gdbarch *gdbarch, CORE_ADDR addr);
 extern void set_gdbarch_smash_text_address (struct gdbarch *gdbarch, gdbarch_smash_text_address_ftype *smash_text_address);
 
+/* gdbarch_isatized_symbol_value is the inverse of gdbarch_addr_bits_remove.
+   It needs an asymbol in order to determine the proper course of action. */
+
+typedef CORE_ADDR (gdbarch_isatized_symbol_value_ftype) (struct gdbarch *gdbarch, asymbol *sym);
+extern CORE_ADDR gdbarch_isatized_symbol_value (struct gdbarch *gdbarch, asymbol *sym);
+extern void set_gdbarch_isatized_symbol_value (struct gdbarch *gdbarch, gdbarch_isatized_symbol_value_ftype *isatized_symbol_value);
+
+
 /* FIXME/cagney/2001-01-18: This should be split in two.  A target method that
    indicates if the target needs software single step.  An ISA method to
    implement it.

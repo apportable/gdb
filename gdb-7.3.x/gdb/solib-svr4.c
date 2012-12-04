@@ -397,9 +397,10 @@ bfd_lookup_symbol (bfd *abfd, const char *symname)
 	  if (strcmp (sym->name, symname) == 0
               && (sym->section->flags & (SEC_CODE | SEC_DATA)) != 0)
 	    {
-	      /* BFD symbols are section relative.  */
-	      symaddr = sym->value + sym->section->vma;
-	      break;
+              /* BFD symbols are section relative, and stripped of ISA bits. */
+              symaddr = gdbarch_isatized_symbol_value(target_gdbarch, sym)
+                      + sym->section->vma;
+              break;
 	    }
 	}
       do_cleanups (back_to);
@@ -426,9 +427,10 @@ bfd_lookup_symbol (bfd *abfd, const char *symname)
 	  if (strcmp (sym->name, symname) == 0
               && (sym->section->flags & (SEC_CODE | SEC_DATA)) != 0)
 	    {
-	      /* BFD symbols are section relative.  */
-	      symaddr = sym->value + sym->section->vma;
-	      break;
+              /* BFD symbols are section relative, and stripped of ISA bits. */
+              symaddr = gdbarch_isatized_symbol_value(target_gdbarch, sym)
+                      + sym->section->vma;
+              break;
 	    }
 	}
       do_cleanups (back_to);

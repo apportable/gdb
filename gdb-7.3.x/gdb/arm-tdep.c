@@ -444,6 +444,18 @@ arm_addr_bits_remove (struct gdbarch *gdbarch, CORE_ADDR val)
     return (val & 0x03fffffc);
 }
 
+/* Restore ISA-specific bits to a symbol address */
+static CORE_ADDR
+arm_isatized_symbol_value(struct gdbarch *gdbarch, asymbol* sym)
+{
+  if (ARM_SYM_BRANCH_TYPE (&((elf_symbol_type *)sym)->internal_elf_sym)
+      == ST_BRANCH_TO_THUMB)
+    return (sym->value | 1);
+
+  /* Internally, bfd stores symbol values in a de-ISAtized state */
+  return sym->value;
+}
+
 /* When reading symbols, we need to zap the low bit of the address,
    which may be set to 1 for Thumb functions.  */
 static CORE_ADDR
@@ -8706,6 +8718,7 @@ arm_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
   /* Address manipulation.  */
   set_gdbarch_smash_text_address (gdbarch, arm_smash_text_address);
   set_gdbarch_addr_bits_remove (gdbarch, arm_addr_bits_remove);
+  set_gdbarch_isatized_symbol_value(gdbarch, arm_isatized_symbol_value);
 
   /* Advance PC across function entry code.  */
   set_gdbarch_skip_prologue (gdbarch, arm_skip_prologue);
