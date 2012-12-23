@@ -850,6 +850,13 @@ done:
 	  *filename_opened = xfullpath (f);
 	  xfree (f);
 	}
+
+        /* Deal with any frankenpaths that have resulted from the above
+           concatenations.  Incidentally, this would also deal with the
+           '//' mentioned above that apparently gives Emacs heartburn,
+           had the above code not already dealt with it specifically. */
+        if (*filename_opened)
+          gdb_cleanup_frankenpath (*filename_opened);
     }
 
   return fd;
@@ -1006,6 +1013,9 @@ find_and_open_source (const char *filename,
           xfree (*fullname);
           *fullname = rewritten_fullname;
         }
+
+      /* application of these rules may have resulted in a frankenpath. */
+      gdb_cleanup_frankenpath (*fullname);
 
       result = open (*fullname, OPEN_MODE);
       if (result >= 0)

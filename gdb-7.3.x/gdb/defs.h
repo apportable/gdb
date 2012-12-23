@@ -407,6 +407,8 @@ extern struct cleanup *make_cleanup_restore_page_info (void);
 extern struct cleanup *
   set_batch_flag_and_make_cleanup_restore_page_info (void);
 
+extern char *gdb_cleanup_frankenpath (char *);
+extern int   gdb_filename_cmp (const char *, const char *);
 extern char *gdb_realpath (const char *);
 extern char *xfullpath (const char *);
 

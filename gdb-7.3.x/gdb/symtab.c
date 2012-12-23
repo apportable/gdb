@@ -186,7 +186,7 @@ got_symtab:
 
   ALL_SYMTABS (objfile, s)
   {
-    if (FILENAME_CMP (name, s->filename) == 0)
+    if (gdb_filename_cmp (name, s->filename) == 0)
       {
 	return s;
       }

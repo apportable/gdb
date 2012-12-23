@@ -4,6 +4,8 @@
    1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
    2009, 2010, 2011 Free Software Foundation, Inc.
 
+   Copyright (c) 2013, NVIDIA CORPORATION.  All rights reserved.
+
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
@@ -3647,6 +3649,123 @@ host_address_to_string (const void *addr)
 
   xsnprintf (str, CELLSIZE, "0x%s", phex_nz ((uintptr_t) addr, sizeof (addr)));
   return str;
+}
+
+char *
+gdb_cleanup_frankenpath (char *path)
+{
+  /* A frankenpath is a path that contains one or more of the following
+     undesireable traits:
+       (a) a mixture of '/' and '\\' as dir separators
+       (b) a contiguous run of some mixture of the above dir separators
+       (c) ./ anywhere (so long as the '.' isn't the end of a subdir name,)
+       (d) ../ somewhere other than the beginning (so long as the '..'
+           isn't the end of a subdir name)
+     ...all of which will stymie strcmp() comparisons of PQFNs and FQFNs,
+     which can only detect syntactic equivalence, not semantic equivalence.
+
+     This function differs from gdb_realpath() in that it makes no
+     attempt to absolutize the path, or resolve symlinks. It also
+     considers both '/' and '\' to be acceptable sub-path separators,
+     since the target OS may differ from the host OS.
+
+     We work directly on the buffer passed in.  Any alteration made herein
+     will work to make the null-terminated string shorter, not longer, so
+     there are no worries about buffer overruns. */
+  char *p, *start, *end;
+
+  /* PASS 0: change all '\\' to '/'.  This is mostly done just to simplify
+     the implementation of the subsequent steps.  It is also beneficial in
+     that it enables us to use pure str[i]cmp() for the actual comparison
+     step. */
+  p = path;
+  while (p && *p)
+  {
+    if (*p == '\\')
+      *p = '/';
+
+    p++;
+  }
+
+  /* PASS 1: Collapse all contiguous runs of / to just a single / */
+  p = path;
+  while (p && *p)
+    {
+      switch (*p)
+        {
+        case '/':
+          start = ++p;
+          while (*p == '/')
+            p++;
+          /* src and dest overlap, so use memmove */
+          /* I assume memmove is smart enough to do nothing when src==dest */
+          memmove(start, p, 1+strlen(p));
+          p = start;
+          break;
+
+	default:
+          p++;
+          break;
+        }
+    }
+
+  /* PASS 2: remove ./ at beginning, and reduce all /./ to / */
+  p = strstr(path, "./");
+  while (p && *p)
+    {
+      if (p == path || p[-1] == '/')
+        /* src and dest overlap, so use memmove */
+        memmove(p, p+2, 1+strlen(p+2));
+      else
+        p += 2; /* the '.' was apparently part of a file or subdir name */
+
+      p = strstr(p, "./");
+    }
+
+  /* PASS 3: resolve /../ everywhere */
+  p = strstr(path, "/../");
+  while (p && *p)
+    {
+      /* scan backwards for the previous '/', unless or until we are
+         at the beginning */
+      start = p;
+      while (start > path && *--start != '/')
+        NULL;
+
+      end = p+3; /* skip past "/..", leaving terminal '/' */
+      if (start == path && *start != '/')
+        end++; /* don't preserve a '/' where none existed before */
+
+      /* src and dest overlap, so use memmove */
+      memmove(start, end, 1+strlen(end));
+
+      p = strstr(start, "/../");
+    }
+
+  return path;
+}
+
+int
+gdb_filename_cmp(const char *s1, const char *s2)
+{
+  char *clean1, *clean2;
+
+  /* The 'filename_cmp()' in libiberty does not account for
+     frankenpaths, which sometime arise in debug symbols */
+  clean1 = xstrdup(s1);
+  clean2 = xstrdup(s2);
+  make_cleanup (xfree, clean1);
+  make_cleanup (xfree, clean2);
+  gdb_cleanup_frankenpath (clean1);
+  gdb_cleanup_frankenpath (clean2);
+
+#ifndef HAVE_DOS_BASED_FILE_SYSTEM
+  return strcmp (clean1, clean2);
+#else
+  /* The frankenpath cleanup above already dealt with the '/'
+     and '\' equivalency issue on these DOS-based file systems. */
+  return stricmp (clean1, clean2);
+#endif
 }
 
 char *

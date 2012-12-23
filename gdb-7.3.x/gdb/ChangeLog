@@ -1,3 +1,15 @@
+2013-01-09  Ryan V. Bissell <rbissell@nvidia.com>
+
+	Smarter symtab path comparisons.
+	* gdb/utils.c (gdb_cleanup_frankenpath): new function.
+	(gdb_filename_cmp): new function.
+	* gdb/symtab.c (lookup_symtab): use gdb_filename_cmp().
+	* gdb/source.c (openp): use gdb_cleanup_frankenpath().
+	(find_and_open_source): use gdb_cleanup_frankenpath().
+	* gdb/psymtab.c (psymtab_to_fullname): use gdb_filename_cmp().
+	(lookup_partial_symtab): use gdb_cleanup_frankenpath().
+	* gdb/defs.h: new extern prototypes.
+
 2012-10-24  Ryan V. Bissell <rbissell@nvidia.com>
 
 	* solib-svr4.c (svr4_parse_libraries): update dtd filename
