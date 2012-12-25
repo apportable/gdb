@@ -188,6 +188,9 @@ BFD_CC_FOR_BUILD
 AC_CHECK_HEADERS(alloca.h stddef.h string.h strings.h stdlib.h time.h unistd.h)
 AC_CHECK_HEADERS(fcntl.h sys/file.h sys/time.h sys/stat.h)
 GCC_HEADER_STDINT(bfd_stdint.h)
+
+AC_CHECK_HEADERS(windows.h dlfcn.h)
+
 AC_HEADER_TIME
 AC_HEADER_DIRENT
 ACX_HEADER_STRING
@@ -1059,6 +1062,7 @@ else
   supports_plugins=0
 fi
 AC_SUBST(supports_plugins)
+AC_SUBST(lt_cv_dlopen_libs)
 
 # Determine the host dependant file_ptr a.k.a. off_t type.  In order
 # prefer: off64_t - if ftello64 and fseeko64, off_t - if ftello and

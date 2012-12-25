@@ -606,6 +606,7 @@ havevecs
 tdefaults
 bfd_ufile_ptr
 bfd_file_ptr
+lt_cv_dlopen_libs
 supports_plugins
 bfd_default_target_size
 bfd_machines
@@ -11404,7 +11405,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11407 "configure"
+#line 11408 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11510,7 +11511,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11513 "configure"
+#line 11514 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -13312,6 +13313,22 @@ fi
 # ----------------- done all checks, emit header -------------
 ac_config_commands="$ac_config_commands bfd_stdint.h"
 
+
+
+
+for ac_header in windows.h dlfcn.h
+do :
+  as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
+ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
+eval as_val=\$$as_ac_Header
+   if test "x$as_val" = x""yes; then :
+  cat >>confdefs.h <<_ACEOF
+#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
+
+fi
+
+done
 
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether time.h and sys/time.h may both be included" >&5
@@ -15429,6 +15446,7 @@ if test "$plugins" = "yes"; then
 else
   supports_plugins=0
 fi
+
 
 
 # Determine the host dependant file_ptr a.k.a. off_t type.  In order
