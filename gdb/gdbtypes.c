@@ -168,6 +168,7 @@ alloc_type (struct objfile *objfile)
   TYPE_CODE (type) = TYPE_CODE_UNDEF;
   TYPE_VPTR_FIELDNO (type) = -1;
   TYPE_CHAIN (type) = type;	/* Chain back to itself.  */
+  type->did_ivar_offsets = 0;
 
   return type;
 }
@@ -196,7 +197,8 @@ alloc_type_arch (struct gdbarch *gdbarch)
   TYPE_CODE (type) = TYPE_CODE_UNDEF;
   TYPE_VPTR_FIELDNO (type) = -1;
   TYPE_CHAIN (type) = type;	/* Chain back to itself.  */
-
+  type->did_ivar_offsets = 0;
+  
   return type;
 }
 

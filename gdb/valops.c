@@ -45,6 +45,7 @@
 #include "objfiles.h"
 #include "symtab.h"
 #include "exceptions.h"
+#include "complaints.h"
 
 extern int overload_debug;
 /* Local functions.  */
@@ -925,10 +926,10 @@ static struct value *
 get_value_at (struct type *type, CORE_ADDR addr, int lazy)
 {
   struct value *val;
-
+#if 0
   if (TYPE_CODE (check_typedef (type)) == TYPE_CODE_VOID)
     error (_("Attempt to dereference a generic pointer."));
-
+#endif
   val = value_from_contents_and_address (type, NULL, addr);
 
   if (!lazy)
@@ -1490,10 +1491,120 @@ value_repeat (struct value *arg1, int count)
   return val;
 }
 
+
+/* Set up the symbol's type's ivar offsets by dynamically getting them with
+   ivar_getOffset(class_getInstanceVariable($2->isa, "{variable}")
+*/
+
+int init_ivar_offsets_enable = 1;   /* Enable turned off for arguments and backtraces. Hack, but adding a parameter 
+                                      would require too many code changes */
+
+static void init_ivar_offsets(struct type *t, struct value *struct_val)
+{
+  int field;
+  int i;
+  struct type *a; /*ancestor types */
+
+  if (!init_ivar_offsets_enable) return;
+
+  CHECK_TYPEDEF (t);
+  if (TYPE_CODE (t) == TYPE_CODE_PTR
+      || TYPE_CODE (t) == TYPE_CODE_REF)
+    t = TYPE_TARGET_TYPE (t);
+
+  if (TYPE_CODE (t) != TYPE_CODE_STRUCT) {
+    return;
+  }
+  if (t->did_ivar_offsets) return;
+  t->did_ivar_offsets = 1;
+
+ if (TYPE_NFIELDS(t) == 0) return;   /* empty object */
+
+  // make sure there is an isa to weed out C-structs
+  if (TYPE_FIELD_TYPE (t, 0)->main_type->type_specific_field != TYPE_SPECIFIC_CPLUS_STUFF) return;
+
+  /* Do ancestor classes */
+  for (a = TYPE_FIELD_TYPE (t, 0); /* ancestors */
+       a->main_type->type_specific_field == TYPE_SPECIFIC_CPLUS_STUFF && strcmp(a->main_type->tag_name, "NSObject") != 0;
+       a = TYPE_FIELD_TYPE(a, 0)) {
+
+    if (a->main_type->flds_bnds.fields == NULL) {
+      /* This is C++, so just return */
+      return;
+    }
+
+    init_ivar_offsets(a, struct_val);
+  }
+
+  // Check if first element after Base Classes has a non-zero offset. 
+  // In Objective C it will be zero. In C++, it will be the size of all the base class contributions
+  // Note: this check is after the ancestor check so that we don't lose Objective C classes whose only ivars are in ancestors
+
+  if ((!(TYPE_FIELD_TYPE (t, TYPE_N_BASECLASSES (t))) || ((TYPE_FIELD(t, TYPE_N_BASECLASSES (t)).loc.bitpos) != 0))) return;
+
+
+  for (i = TYPE_NFIELDS (t) - 1; i >= TYPE_N_BASECLASSES (t); i--) {
+    char *field = TYPE_FIELD_NAME (t, i);
+
+    CORE_ADDR result;
+    struct value *function, *classval;
+    struct type *char_type;
+    struct gdbarch *gdbarch;
+    struct objfile *objf;
+    struct value *paramValue[2];
+    struct value *result1;
+    struct value *ind_val;
+
+    /* struct value *isa_val = value_from_pointer(lookup_pointer_type (t), value_as_address(ind_val)); */
+
+    if (lookup_minimal_symbol("class_getInstanceVariable", 0, 0)) {
+      function = find_function_in_inferior("class_getInstanceVariable",  &objf);
+      gdbarch = get_objfile_arch (objf);
+      char_type = builtin_type (gdbarch)->builtin_char;
+    } else {
+        complaint (&symfile_complaints,
+       _("no way to lookup Objective-C ivars - class_getInstanceVariable is missing"));
+        continue;
+    }
+
+    // if (name == NULL || strcmp(name, "self") == 0) { // Use self
+    //   const struct language_defn *langdef = language_def (lang);
+    //   struct value *this_val = value_of_this(langdef);
+    //   ind_val = value_ind(this_val);
+    // } else {
+    {
+   //   struct value *base = value_of_variable (sym, block);
+      ind_val = struct_val;
+    }
+
+    classval = value_string (field, strlen (field) + 1, char_type);
+    classval = value_coerce_array (classval);
+    paramValue[0] = ind_val;
+    paramValue[1] = classval;
+    result1 = call_function_by_hand (function, 2, &paramValue[0]);
+
+    if (lookup_minimal_symbol("ivar_getOffset", 0, 0)) {
+      function = find_function_in_inferior("ivar_getOffset",  &objf);
+    } else {
+        complaint (&symfile_complaints,
+       _("no way to lookup Objective-C ivars - ivar_getOffset is missing"));
+        continue;
+    }
+
+    result = value_as_long (call_function_by_hand (function, 1, &result1));
+
+    TYPE_FIELD(t, i).loc.bitpos = result * TARGET_CHAR_BIT;
+    /* t->main_type->flds_bnds.fields[field-1].loc.bitpos = result * TARGET_CHAR_BIT; */
+  }
+}
+
+
 struct value *
 value_of_variable (struct symbol *var, const struct block *b)
 {
   struct frame_info *frame;
+  struct type *t;
+  struct value *temp_val;
 
   if (!symbol_read_needs_frame (var))
     frame = NULL;
@@ -1513,7 +1624,23 @@ value_of_variable (struct symbol *var, const struct block *b)
 	}
     }
 
-  return read_var_value (var, frame);
+  val = read_var_value (var, frame);
+  if (!val)
+    error (_("Address of symbol \"%s\" is unknown."), SYMBOL_PRINT_NAME (var));
+
+  t = var->type;
+  temp_val = val;
+
+  CHECK_TYPEDEF (t);
+  if (TYPE_CODE (t) == TYPE_CODE_PTR) {
+    t = TYPE_TARGET_TYPE (t);
+    temp_val = value_ind(temp_val);
+    if (TYPE_CODE (t) == TYPE_CODE_STRUCT) {
+      init_ivar_offsets(t, temp_val);
+    }
+  }
+
+  return val;
 }
 
 struct value *
@@ -2038,9 +2165,16 @@ do_search_struct_field (const char *name, struct value *arg1, int offset,
 			 name);
 	      }
 	    else
-	      v = value_primitive_field (arg1, offset, i, type);
-	    *result_ptr = v;
-	    return;
+	      {
+		v = value_primitive_field (arg1, offset, i, type);
+
+            // need to make sure value's types offset are there if this is an indirect of a self struct
+            if (TYPE_CODE (TYPE_FIELD_TYPE (type, i)) == TYPE_CODE_PTR) 
+              {
+                init_ivar_offsets(TYPE_FIELD_TYPE (type, i), value_ind(v));
+              }
+		*result_ptr = v;
+	    return v;
 	  }
 
 	if (t_field_name
@@ -2376,6 +2510,7 @@ value_struct_elt (struct value **argp, struct value **args,
 
   if (!args)
     {
+      init_ivar_offsets(t, *argp);  // Necessary so outer structure is set up before the field
       /* if there are no arguments ...do this...  */
 
       /* Try as a field first, because if we succeed, there is less

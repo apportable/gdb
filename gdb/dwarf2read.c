@@ -13619,6 +13619,7 @@ set_cu_language (unsigned int lang, struct dwarf2_cu *cu)
       cu->language = language_pascal;
       break;
     case DW_LANG_ObjC:
+    case DW_LANG_ObjC_plus_plus:
       cu->language = language_objc;
       break;
     case DW_LANG_Cobol74:
