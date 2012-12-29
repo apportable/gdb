@@ -579,8 +579,13 @@ print_frame_args (struct symbol *func, struct frame_info *frame,
 	    {
 	      struct symbol *nsym;
 
+        extern int init_ivar_offsets_enable;
+        init_ivar_offsets_enable = 0;
+
 	      nsym = lookup_symbol (SYMBOL_LINKAGE_NAME (sym),
 				    b, VAR_DOMAIN, NULL);
+        init_ivar_offsets_enable = 1;
+
 	      gdb_assert (nsym != NULL);
 	      if (SYMBOL_CLASS (nsym) == LOC_REGISTER
 		  && !SYMBOL_IS_ARGUMENT (nsym))
@@ -2063,6 +2068,7 @@ print_frame_arg_vars (struct frame_info *frame, struct ui_file *stream)
   struct print_variable_and_value_data cb_data;
   struct symbol *func;
   CORE_ADDR pc;
+  extern int init_ivar_offsets_enable;
 
   if (!get_frame_pc_if_available (frame, &pc))
     {
@@ -2082,8 +2088,12 @@ print_frame_arg_vars (struct frame_info *frame, struct ui_file *stream)
   cb_data.stream = gdb_stdout;
   cb_data.values_printed = 0;
 
+  init_ivar_offsets_enable = 0;
+
   iterate_over_block_arg_vars (SYMBOL_BLOCK_VALUE (func),
 			       do_print_variable_and_value, &cb_data);
+
+  init_ivar_offsets_enable = 1;
 
   /* do_print_variable_and_value invalidates FRAME.  */
   frame = NULL;

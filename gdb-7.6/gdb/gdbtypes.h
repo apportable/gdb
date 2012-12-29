@@ -707,6 +707,9 @@ struct type
 
   /* Core type, shared by a group of qualified types.  */
   struct main_type *main_type;
+
+  /* Objective-C types have their offsets initialized */
+  int did_ivar_offsets;
 };
 
 #define	NULL_TYPE ((struct type *) 0)
