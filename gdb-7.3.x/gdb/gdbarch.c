@@ -218,8 +218,8 @@ struct gdbarch
   int frame_red_zone_size;
   gdbarch_convert_from_func_ptr_addr_ftype *convert_from_func_ptr_addr;
   gdbarch_addr_bits_remove_ftype *addr_bits_remove;
-  gdbarch_smash_text_address_ftype *smash_text_address;
   gdbarch_isatized_symbol_value_ftype *isatized_symbol_value;
+  gdbarch_smash_text_address_ftype *smash_text_address;
   gdbarch_software_single_step_ftype *software_single_step;
   gdbarch_single_step_through_delay_ftype *single_step_through_delay;
   gdbarch_print_insn_ftype *print_insn;
@@ -371,8 +371,8 @@ struct gdbarch startup_gdbarch =
   0,  /* frame_red_zone_size */
   convert_from_func_ptr_addr_identity,  /* convert_from_func_ptr_addr */
   core_addr_identity,  /* addr_bits_remove */
-  core_addr_identity,  /* smash_text_address */
   core_addr_identity,  /* isatized_symbol_value */
+  core_addr_identity,  /* smash_text_address */
   0,  /* software_single_step */
   0,  /* single_step_through_delay */
   0,  /* print_insn */
@@ -494,6 +494,7 @@ gdbarch_alloc (const struct gdbarch_info *info,
   gdbarch->stabs_argument_has_addr = default_stabs_argument_has_addr;
   gdbarch->convert_from_func_ptr_addr = convert_from_func_ptr_addr_identity;
   gdbarch->addr_bits_remove = core_addr_identity;
+  gdbarch->isatized_symbol_value = core_addr_identity;
   gdbarch->smash_text_address = core_addr_identity;
   gdbarch->skip_trampoline_code = generic_skip_trampoline_code;
   gdbarch->skip_solib_resolver = generic_skip_solib_resolver;
@@ -654,6 +655,7 @@ verify_gdbarch (struct gdbarch *gdbarch)
   /* Skip verify of stabs_argument_has_addr, invalid_p == 0 */
   /* Skip verify of convert_from_func_ptr_addr, invalid_p == 0 */
   /* Skip verify of addr_bits_remove, invalid_p == 0 */
+  /* Skip verify of isatized_symbol_value, invalid_p == 0 */
   /* Skip verify of smash_text_address, invalid_p == 0 */
   /* Skip verify of software_single_step, has predicate.  */
   /* Skip verify of single_step_through_delay, has predicate.  */
@@ -1002,6 +1004,9 @@ gdbarch_dump (struct gdbarch *gdbarch, struct ui_file *file)
   fprintf_unfiltered (file,
                       "gdbarch_dump: integer_to_address = <%s>\n",
                       host_address_to_string (gdbarch->integer_to_address));
+  fprintf_unfiltered (file,
+                      "gdbarch_dump: isatized_symbol_value = <%s>\n",
+                      host_address_to_string (gdbarch->isatized_symbol_value));
   fprintf_unfiltered (file,
                       "gdbarch_dump: long_bit = %s\n",
                       plongest (gdbarch->long_bit));
@@ -2803,7 +2808,7 @@ set_gdbarch_addr_bits_remove (struct gdbarch *gdbarch,
 }
 
 CORE_ADDR
-gdbarch_isatized_symbol_value(struct gdbarch *gdbarch, asymbol *sym)
+gdbarch_isatized_symbol_value (struct gdbarch *gdbarch, asymbol *sym)
 {
   gdb_assert (gdbarch != NULL);
   gdb_assert (gdbarch->isatized_symbol_value != NULL);
@@ -2814,7 +2819,7 @@ gdbarch_isatized_symbol_value(struct gdbarch *gdbarch, asymbol *sym)
 
 void
 set_gdbarch_isatized_symbol_value (struct gdbarch *gdbarch,
-                              gdbarch_isatized_symbol_value_ftype isatized_symbol_value)
+                                   gdbarch_isatized_symbol_value_ftype isatized_symbol_value)
 {
   gdbarch->isatized_symbol_value = isatized_symbol_value;
 }

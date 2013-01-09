@@ -556,13 +556,6 @@ typedef CORE_ADDR (gdbarch_addr_bits_remove_ftype) (struct gdbarch *gdbarch, COR
 extern CORE_ADDR gdbarch_addr_bits_remove (struct gdbarch *gdbarch, CORE_ADDR addr);
 extern void set_gdbarch_addr_bits_remove (struct gdbarch *gdbarch, gdbarch_addr_bits_remove_ftype *addr_bits_remove);
 
-/* It is not at all clear why gdbarch_smash_text_address is not folded into
-   gdbarch_addr_bits_remove. */
-
-typedef CORE_ADDR (gdbarch_smash_text_address_ftype) (struct gdbarch *gdbarch, CORE_ADDR addr);
-extern CORE_ADDR gdbarch_smash_text_address (struct gdbarch *gdbarch, CORE_ADDR addr);
-extern void set_gdbarch_smash_text_address (struct gdbarch *gdbarch, gdbarch_smash_text_address_ftype *smash_text_address);
-
 /* gdbarch_isatized_symbol_value is the inverse of gdbarch_addr_bits_remove.
    It needs an asymbol in order to determine the proper course of action. */
 
@@ -570,6 +563,12 @@ typedef CORE_ADDR (gdbarch_isatized_symbol_value_ftype) (struct gdbarch *gdbarch
 extern CORE_ADDR gdbarch_isatized_symbol_value (struct gdbarch *gdbarch, asymbol *sym);
 extern void set_gdbarch_isatized_symbol_value (struct gdbarch *gdbarch, gdbarch_isatized_symbol_value_ftype *isatized_symbol_value);
 
+/* It is not at all clear why gdbarch_smash_text_address is not folded into
+   gdbarch_addr_bits_remove. */
+
+typedef CORE_ADDR (gdbarch_smash_text_address_ftype) (struct gdbarch *gdbarch, CORE_ADDR addr);
+extern CORE_ADDR gdbarch_smash_text_address (struct gdbarch *gdbarch, CORE_ADDR addr);
+extern void set_gdbarch_smash_text_address (struct gdbarch *gdbarch, gdbarch_smash_text_address_ftype *smash_text_address);
 
 /* FIXME/cagney/2001-01-18: This should be split in two.  A target method that
    indicates if the target needs software single step.  An ISA method to
