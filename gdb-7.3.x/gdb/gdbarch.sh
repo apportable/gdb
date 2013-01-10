@@ -562,7 +562,7 @@ m:CORE_ADDR:convert_from_func_ptr_addr:CORE_ADDR addr, struct target_ops *targ:a
 m:CORE_ADDR:addr_bits_remove:CORE_ADDR addr:addr::core_addr_identity::0
 # gdbarch_isatized_symbol_value is the inverse of gdbarch_addr_bits_remove.
 # It needs an asymbol in order to determine the proper course of action.
-m:CORE_ADDR:isatized_symbol_value:asymbol *sym:sym::core_addr_identity::0
+m:CORE_ADDR:isatized_symbol_value:asymbol *sym:sym::default_isatized_symbol_value::0
 # It is not at all clear why gdbarch_smash_text_address is not folded into
 # gdbarch_addr_bits_remove.
 m:CORE_ADDR:smash_text_address:CORE_ADDR addr:addr::core_addr_identity::0

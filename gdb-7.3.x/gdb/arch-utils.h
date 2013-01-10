@@ -81,6 +81,10 @@ void default_elf_make_msymbol_special (asymbol *sym,
 
 void default_coff_make_msymbol_special (int val, struct minimal_symbol *msym);
 
+/* Default implementation of gdbarch_isatized_symbol_value.  */
+
+CORE_ADDR default_isatized_symbol_value (struct gdbarch *gdbarch, asymbol *sym);
+
 /* Version of cannot_fetch_register() / cannot_store_register() that
    always fails.  */
 

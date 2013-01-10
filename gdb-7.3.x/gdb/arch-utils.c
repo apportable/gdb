@@ -179,6 +179,12 @@ default_coff_make_msymbol_special (int val, struct minimal_symbol *msym)
   return;
 }
 
+CORE_ADDR
+default_isatized_symbol_value (struct gdbarch *gdbarch, asymbol *sym)
+{
+  return sym->value;
+}
+
 int
 cannot_register_not (struct gdbarch *gdbarch, int regnum)
 {
