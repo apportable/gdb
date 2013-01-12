@@ -371,7 +371,7 @@ struct gdbarch startup_gdbarch =
   0,  /* frame_red_zone_size */
   convert_from_func_ptr_addr_identity,  /* convert_from_func_ptr_addr */
   core_addr_identity,  /* addr_bits_remove */
-  core_addr_identity,  /* isatized_symbol_value */
+  default_isatized_symbol_value,  /* isatized_symbol_value */
   core_addr_identity,  /* smash_text_address */
   0,  /* software_single_step */
   0,  /* single_step_through_delay */
@@ -494,7 +494,7 @@ gdbarch_alloc (const struct gdbarch_info *info,
   gdbarch->stabs_argument_has_addr = default_stabs_argument_has_addr;
   gdbarch->convert_from_func_ptr_addr = convert_from_func_ptr_addr_identity;
   gdbarch->addr_bits_remove = core_addr_identity;
-  gdbarch->isatized_symbol_value = core_addr_identity;
+  gdbarch->isatized_symbol_value = default_isatized_symbol_value;
   gdbarch->smash_text_address = core_addr_identity;
   gdbarch->skip_trampoline_code = generic_skip_trampoline_code;
   gdbarch->skip_solib_resolver = generic_skip_solib_resolver;
