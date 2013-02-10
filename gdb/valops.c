@@ -46,6 +46,7 @@
 #include "symtab.h"
 #include "exceptions.h"
 #include "complaints.h"
+#include "valprint.h"
 
 extern int overload_debug;
 /* Local functions.  */
@@ -1491,13 +1492,21 @@ value_repeat (struct value *arg1, int count)
   return val;
 }
 
-
-/* Set up the symbol's type's ivar offsets by dynamically getting them with
-   ivar_getOffset(class_getInstanceVariable($2->isa, "{variable}")
-*/
+static CORE_ADDR get_from_target_address(CORE_ADDR a, enum bfd_endian byte_order)
+{
+    char buf[4];
+    if (target_read_memory (a, buf, sizeof (buf)) != 0) {
+      error (_("failure to get_from_target_address"));
+    }
+    return extract_unsigned_integer (buf, sizeof (buf), byte_order);
+}
 
 int init_ivar_offsets_enable = 1;   /* Enable turned off for arguments and backtraces. Hack, but adding a parameter 
                                       would require too many code changes */
+
+#define INSTANCE_SIZE_OFFSET 20           /* the object may be bigger than what sizeof thinks, so update it here */
+#define IVAR_TABLE_OFFSET 24              /* ivar table offset in Class structure */
+#define IVAR_ENTRY_SIZE 12                /* char *name, char *type, int offset */
 
 static void init_ivar_offsets(struct type *t, struct value *struct_val)
 {
@@ -1532,8 +1541,6 @@ static void init_ivar_offsets(struct type *t, struct value *struct_val)
       /* This is C++, so just return */
       return;
     }
-
-    init_ivar_offsets(a, struct_val);
   }
 
   // Check if first element after Base Classes has a non-zero offset. 
@@ -1542,62 +1549,51 @@ static void init_ivar_offsets(struct type *t, struct value *struct_val)
 
   if ((!(TYPE_FIELD_TYPE (t, TYPE_N_BASECLASSES (t))) || ((TYPE_FIELD(t, TYPE_N_BASECLASSES (t)).loc.bitpos) != 0))) return;
 
-
-  for (i = TYPE_NFIELDS (t) - 1; i >= TYPE_N_BASECLASSES (t); i--) {
-    char *field = TYPE_FIELD_NAME (t, i);
-
-    CORE_ADDR result;
-    struct value *function, *classval;
-    struct type *char_type;
-    struct gdbarch *gdbarch;
+  /* Find the ivar offsets */
+  {
+    int i, j;
     struct objfile *objf;
-    struct value *paramValue[2];
-    struct value *result1;
-    struct value *ind_val;
+    struct value *function = find_function_in_inferior("class_copyIvarList",  &objf);
+    struct gdbarch *gdbarch = get_objfile_arch (objf);
+    enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
 
-    /* struct value *isa_val = value_from_pointer(lookup_pointer_type (t), value_as_address(ind_val)); */
-
-    if (lookup_minimal_symbol("class_getInstanceVariable", 0, 0)) {
-      function = find_function_in_inferior("class_getInstanceVariable",  &objf);
-      gdbarch = get_objfile_arch (objf);
-      char_type = builtin_type (gdbarch)->builtin_char;
-    } else {
-        complaint (&symfile_complaints,
-       _("no way to lookup Objective-C ivars - class_getInstanceVariable is missing"));
-        continue;
+    CORE_ADDR base_addr = value_raw_address(struct_val);
+    CORE_ADDR isa = get_from_target_address(base_addr, byte_order);
+    CORE_ADDR ivars = get_from_target_address((int)isa + IVAR_TABLE_OFFSET, byte_order);
+    unsigned count = get_from_target_address(ivars, byte_order);
+    unsigned fix_sizeof = get_from_target_address((int)isa + INSTANCE_SIZE_OFFSET, byte_order);
+    if (t->length < fix_sizeof) t->length = fix_sizeof;  /* TODO - fix size on ancestors */
+    for (i = 0; i < count; i++) {
+      int bytes_read;
+      gdb_byte *buffer = NULL;  /* Dynamically growable fetch buffer.  */
+      unsigned ivar_entry_ptr = ivars + 4 + (i * IVAR_ENTRY_SIZE);
+      unsigned name_ptr = get_from_target_address(ivar_entry_ptr , byte_order);
+      int errcode = read_string (name_ptr, -1, 1, UINT_MAX, byte_order, &buffer, &bytes_read);
+      if (errcode) {
+        error (_("read_string failed for ivar name"));
+        return;
+      } else {
+        unsigned offset = get_from_target_address(ivar_entry_ptr + 8, byte_order);
+        // find field  -- TODO optimize so i and j loops track each other
+        for (a = t; /* ancestors */
+             strcmp(a->main_type->tag_name, "NSObject") != 0;
+             a = TYPE_FIELD_TYPE(a, 0)) {
+          int found = 0;
+          for (j = TYPE_NFIELDS (a) - 1; j >= TYPE_N_BASECLASSES (a); j--) {
+            char *field = TYPE_FIELD_NAME (a, j);
+            if (strcmp(field, buffer) == 0) {
+              TYPE_FIELD(a, j).loc.bitpos = offset * TARGET_CHAR_BIT;
+              a->did_ivar_offsets = 1;
+              found = 1;
+              break;
+            }
+          }
+          if (found) break;
+        }
+      }
     }
-
-    // if (name == NULL || strcmp(name, "self") == 0) { // Use self
-    //   const struct language_defn *langdef = language_def (lang);
-    //   struct value *this_val = value_of_this(langdef);
-    //   ind_val = value_ind(this_val);
-    // } else {
-    {
-   //   struct value *base = value_of_variable (sym, block);
-      ind_val = struct_val;
-    }
-
-    classval = value_string (field, strlen (field) + 1, char_type);
-    classval = value_coerce_array (classval);
-    paramValue[0] = ind_val;
-    paramValue[1] = classval;
-    result1 = call_function_by_hand (function, 2, &paramValue[0]);
-
-    if (lookup_minimal_symbol("ivar_getOffset", 0, 0)) {
-      function = find_function_in_inferior("ivar_getOffset",  &objf);
-    } else {
-        complaint (&symfile_complaints,
-       _("no way to lookup Objective-C ivars - ivar_getOffset is missing"));
-        continue;
-    }
-
-    result = value_as_long (call_function_by_hand (function, 1, &result1));
-
-    TYPE_FIELD(t, i).loc.bitpos = result * TARGET_CHAR_BIT;
-    /* t->main_type->flds_bnds.fields[field-1].loc.bitpos = result * TARGET_CHAR_BIT; */
   }
 }
-
 
 struct value *
 value_of_variable (struct symbol *var, const struct block *b)
