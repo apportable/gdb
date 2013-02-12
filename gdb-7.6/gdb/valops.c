@@ -1600,6 +1600,8 @@ value_of_variable (struct symbol *var, const struct block *b)
   struct frame_info *frame;
   struct type *t;
   struct value *temp_val;
+  struct value *return_val;
+
 
   if (!symbol_read_needs_frame (var))
     frame = NULL;
@@ -1619,12 +1621,12 @@ value_of_variable (struct symbol *var, const struct block *b)
 	}
     }
 
-  val = read_var_value (var, frame);
-  if (!val)
+  return_val = read_var_value (var, frame);
+  if (!return_val)
     error (_("Address of symbol \"%s\" is unknown."), SYMBOL_PRINT_NAME (var));
 
   t = var->type;
-  temp_val = val;
+  temp_val = return_val;
 
   CHECK_TYPEDEF (t);
   if (TYPE_CODE (t) == TYPE_CODE_PTR) {
@@ -1635,7 +1637,7 @@ value_of_variable (struct symbol *var, const struct block *b)
     }
   }
 
-  return val;
+  return return_val;
 }
 
 struct value *
@@ -2149,14 +2151,13 @@ do_search_struct_field (const char *name, struct value *arg1, int offset,
 	    else
 	      {
 		v = value_primitive_field (arg1, offset, i, type);
-
+              }
             // need to make sure value's types offset are there if this is an indirect of a self struct
             if (TYPE_CODE (TYPE_FIELD_TYPE (type, i)) == TYPE_CODE_PTR) 
               {
                 init_ivar_offsets(TYPE_FIELD_TYPE (type, i), value_ind(v));
               }
 		*result_ptr = v;
-	    return v;
 	  }
 
 	if (t_field_name
