@@ -1507,6 +1507,8 @@ int init_ivar_offsets_enable = 1;   /* Enable turned off for arguments and backt
 #define INSTANCE_SIZE_OFFSET 20           /* the object may be bigger than what sizeof thinks, so update it here */
 #define IVAR_TABLE_OFFSET 24              /* ivar table offset in Class structure */
 #define IVAR_ENTRY_SIZE 12                /* char *name, char *type, int offset */
+#define SUPER_OFFSET 4
+#define NAME_OFFSET 8
 
 static void init_ivar_offsets(struct type *t, struct value *struct_val)
 {
@@ -1559,36 +1561,55 @@ static void init_ivar_offsets(struct type *t, struct value *struct_val)
 
     CORE_ADDR base_addr = value_raw_address(struct_val);
     CORE_ADDR isa = get_from_target_address(base_addr, byte_order);
-    CORE_ADDR ivars = get_from_target_address((int)isa + IVAR_TABLE_OFFSET, byte_order);
-    unsigned count = get_from_target_address(ivars, byte_order);
-    unsigned fix_sizeof = get_from_target_address((int)isa + INSTANCE_SIZE_OFFSET, byte_order);
-    if (t->length < fix_sizeof) t->length = fix_sizeof;  /* TODO - fix size on ancestors */
-    for (i = 0; i < count; i++) {
-      int bytes_read;
-      gdb_byte *buffer = NULL;  /* Dynamically growable fetch buffer.  */
-      unsigned ivar_entry_ptr = ivars + 4 + (i * IVAR_ENTRY_SIZE);
-      unsigned name_ptr = get_from_target_address(ivar_entry_ptr , byte_order);
-      int errcode = read_string (name_ptr, -1, 1, UINT_MAX, byte_order, &buffer, &bytes_read);
-      if (errcode) {
-        error (_("read_string failed for ivar name"));
-        return;
-      } else {
-        unsigned offset = get_from_target_address(ivar_entry_ptr + 8, byte_order);
-        // find field  -- TODO optimize so i and j loops track each other
-        for (a = t; /* ancestors */
-             strcmp(a->main_type->tag_name, "NSObject") != 0;
-             a = TYPE_FIELD_TYPE(a, 0)) {
-          int found = 0;
+
+    for (a = t; /* ancestors */
+         strcmp(a->main_type->tag_name, "NSObject") != 0;
+         a = TYPE_FIELD_TYPE(a, 0)) {
+      a->did_ivar_offsets = 1;
+
+      // gdb misses types in class hierarchy so match it up here.
+      while (1) {
+        gdb_byte *class_name;
+        CORE_ADDR name_ptr = get_from_target_address((int)isa + NAME_OFFSET, byte_order);
+        int bytes_read;
+        int errcode = read_string (name_ptr, -1, 1, UINT_MAX, byte_order, &class_name, &bytes_read);
+        if (errcode) {
+          error (_("read_string failed for class name"));
+          return;
+        }
+        if (strcmp(class_name, a->main_type->tag_name) == 0) {
+          // aligned gdb and runtime class. get size right and continue
+          unsigned fix_sizeof = get_from_target_address((int)isa + INSTANCE_SIZE_OFFSET, byte_order);
+          if (a->length < fix_sizeof) a->length = fix_sizeof;
+          break;
+        }
+        isa = get_from_target_address((int)isa + SUPER_OFFSET, byte_order);
+        if (isa == 0) {
+          return;
+        }
+      }
+
+      CORE_ADDR ivars = get_from_target_address((int)isa + IVAR_TABLE_OFFSET, byte_order);
+      unsigned count = get_from_target_address(ivars, byte_order);
+
+      for (i = 0; i < count; i++) {
+        int bytes_read;
+        gdb_byte *buffer = NULL;  /* Dynamically growable fetch buffer.  */
+        unsigned ivar_entry_ptr = ivars + 4 + (i * IVAR_ENTRY_SIZE);
+        unsigned name_ptr = get_from_target_address(ivar_entry_ptr , byte_order);
+        int errcode = read_string (name_ptr, -1, 1, UINT_MAX, byte_order, &buffer, &bytes_read);
+        if (errcode) {
+          error (_("read_string failed for ivar name"));
+          return;
+        } else {
+          unsigned offset = get_from_target_address(ivar_entry_ptr + 8, byte_order);
           for (j = TYPE_NFIELDS (a) - 1; j >= TYPE_N_BASECLASSES (a); j--) {
             char *field = TYPE_FIELD_NAME (a, j);
             if (strcmp(field, buffer) == 0) {
               TYPE_FIELD(a, j).loc.bitpos = offset * TARGET_CHAR_BIT;
-              a->did_ivar_offsets = 1;
-              found = 1;
               break;
             }
           }
-          if (found) break;
         }
       }
     }
