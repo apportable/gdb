@@ -8740,6 +8740,16 @@ gdb_print_insn_arm (bfd_vma memaddr, disassemble_info *info)
     return print_insn_little_arm (memaddr, info);
 }
 
+
+/* Get the ith function argument for the current function.  */
+static CORE_ADDR
+arm_fetch_pointer_argument (struct frame_info *frame, int argi, 
+             struct type *type)
+{
+  return get_frame_register_unsigned (frame, argi);
+}
+
+
 /* The following define instruction sequences that will cause ARM
    cpu's to take an undefined instruction trap.  These are used to
    signal a breakpoint to GDB.
@@ -10293,6 +10303,9 @@ arm_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
   set_gdbarch_breakpoint_from_pc (gdbarch, arm_breakpoint_from_pc);
   set_gdbarch_remote_breakpoint_from_pc (gdbarch,
 					 arm_remote_breakpoint_from_pc);
+
+    /* Helpers for function argument information.  */
+  set_gdbarch_fetch_pointer_argument (gdbarch, arm_fetch_pointer_argument);
 
   /* Information about registers, etc.  */
   set_gdbarch_sp_regnum (gdbarch, ARM_SP_REGNUM);

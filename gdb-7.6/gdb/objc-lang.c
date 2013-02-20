@@ -1264,6 +1264,7 @@ static int resolve_msgsend_super_stret (CORE_ADDR pc, CORE_ADDR *new_pc);
 
 static struct objc_methcall methcalls[] = {
   { "_objc_msgSend", resolve_msgsend, 0, 0},
+  { "_objc_msgSend_fpret", resolve_msgsend, 0, 0},
   { "_objc_msgSend_stret", resolve_msgsend_stret, 0, 0},
   { "_objc_msgSendSuper", resolve_msgsend_super, 0, 0},
   { "_objc_msgSendSuper_stret", resolve_msgsend_super_stret, 0, 0},
@@ -1427,7 +1428,7 @@ read_objc_methlist_method (struct gdbarch *gdbarch, CORE_ADDR addr,
 			   unsigned long num, struct objc_method *method)
 {
   gdb_assert (num < read_objc_methlist_nmethods (gdbarch, addr));
-  read_objc_method (gdbarch, addr + 8 + (12 * num), method);
+  read_objc_method (gdbarch, addr + (12 * num), method);
 }
   
 static void 
@@ -1474,46 +1475,44 @@ find_implementation_from_class (struct gdbarch *gdbarch,
 {
   enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   CORE_ADDR subclass = class;
+  unsigned sel_name = read_memory_unsigned_integer (sel, 4, byte_order);
+  if (sel_name == 0) return 0;
 
   while (subclass != 0) 
     {
 
       struct objc_class class_str;
       unsigned mlistnum = 0;
+      unsigned mlistptr;
 
       read_objc_class (gdbarch, subclass, &class_str);
 
-      for (;;) 
+      for (mlistptr = class_str.methods; mlistptr != 0; mlistptr = read_memory_unsigned_integer(mlistptr, 4, byte_order) ) 
 	{
 	  CORE_ADDR mlist;
 	  unsigned long nmethods;
+          unsigned long methods;
 	  unsigned long i;
-      
-	  mlist = read_memory_unsigned_integer (class_str.methods + 
-						(4 * mlistnum),
-						4, byte_order);
-	  if (mlist == 0) 
-	    break;
 
-	  nmethods = read_objc_methlist_nmethods (gdbarch, mlist);
+          nmethods = read_memory_unsigned_integer (mlistptr + 4, 4, byte_order);
 
-	  for (i = 0; i < nmethods; i++) 
+	  for (i = 0, methods = mlistptr + 8; i < nmethods; i++) 
 	    {
 	      struct objc_method meth_str;
+              unsigned check_sel_name;
 
-	      read_objc_methlist_method (gdbarch, mlist, i, &meth_str);
+	      read_objc_methlist_method (gdbarch, methods, i, &meth_str);
 #if 0
 	      fprintf (stderr, 
 		       "checking method 0x%lx against selector 0x%lx\n", 
 		       meth_str.name, sel);
 #endif
-
-	      if (meth_str.name == sel) 
+              check_sel_name = read_memory_unsigned_integer(meth_str.name, 4, byte_order);
+	      if (check_sel_name == sel_name) 
 		/* FIXME: hppa arch was doing a pointer dereference
 		   here.  There needs to be a better way to do that.  */
 		return meth_str.imp;
 	    }
-	  mlistnum++;
 	}
       subclass = class_str.super_class;
     }

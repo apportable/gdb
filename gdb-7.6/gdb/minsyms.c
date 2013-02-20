@@ -1293,7 +1293,8 @@ lookup_solib_trampoline_symbol_by_pc (CORE_ADDR pc)
     return NULL;
   msymbol = lookup_minimal_symbol_by_pc_section_1 (pc, section, 1);
 
-  if (msymbol != NULL && MSYMBOL_TYPE (msymbol) == mst_solib_trampoline)
+  if (msymbol != NULL && 
+    (strncmp(msymbol->ginfo.name, "objc_msgSend", 12) == 0 || MSYMBOL_TYPE (msymbol) == mst_solib_trampoline))
     return msymbol;
   return NULL;
 }
