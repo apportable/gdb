@@ -1535,7 +1535,9 @@ static void init_ivar_offsets(struct type *t, struct value *struct_val)
 
   /* Do ancestor classes */
   for (a = TYPE_FIELD_TYPE (t, 0); /* ancestors */
-       a->main_type->type_specific_field == TYPE_SPECIFIC_CPLUS_STUFF && strcmp(a->main_type->tag_name, "NSObject") != 0;
+       a->main_type->type_specific_field == TYPE_SPECIFIC_CPLUS_STUFF && 
+        a->main_type->tag_name &&
+        strcmp(a->main_type->tag_name, "NSObject") != 0;
        a = TYPE_FIELD_TYPE(a, 0)) {
 
     if (a->main_type->flds_bnds.fields == NULL) {
