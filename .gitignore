@@ -38,3 +38,5 @@ lost+found
 
 *.log
 *.sum
+
+.DS_Store
