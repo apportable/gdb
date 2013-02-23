@@ -206,14 +206,14 @@ store_ppc_memory (CORE_ADDR memaddr, char *myaddr, int len)
 static int
 parse_spufs_run (int *fd, CORE_ADDR *addr)
 {
-  unsigned int insn;
+  char buf[4];
   CORE_ADDR pc = fetch_ppc_register (32);  /* nip */
 
   /* Fetch instruction preceding current NIP.  */
-  if (fetch_ppc_memory (pc-4, (char *) &insn, 4) != 0)
+  if (fetch_ppc_memory (pc-4, buf, 4) != 0)
     return 0;
   /* It should be a "sc" instruction.  */
-  if (insn != INSTR_SC)
+  if (*(unsigned int *)buf != INSTR_SC)
     return 0;
   /* System call number should be NR_spu_run.  */
   if (fetch_ppc_register (0) != NR_spu_run)

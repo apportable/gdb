@@ -19,7 +19,6 @@
 
 
 #include "server.h"
-#include "gdbthread.h"
 #include "nto-low.h"
 
 #include <limits.h>

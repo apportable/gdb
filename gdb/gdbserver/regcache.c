@@ -19,7 +19,6 @@
 
 #include "server.h"
 #include "regdef.h"
-#include "gdbthread.h"
 
 #include <stdlib.h>
 #include <string.h>

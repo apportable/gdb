@@ -557,7 +557,7 @@ thread_db_load_search (void)
   tdb->td_symbol_list_p = &td_symbol_list;
 
   /* This is required only when thread_db_use_events is on.  */
-  tdb->td_thr_event_enable_p = &td_thr_event_enable;
+  tdb->td_thr_event_enable_p = (typeof(tdb->td_thr_event_enable_p))&td_thr_event_enable;
 
   /* These are not essential.  */
   tdb->td_ta_event_addr_p = &td_ta_event_addr;
@@ -649,7 +649,11 @@ dladdr_to_soname (const void *addr)
 {
   Dl_info info;
 
+#ifdef __ANDROID__
+  if (dladdr ((void *)addr, &info) != 0)
+#else
   if (dladdr (addr, &info) != 0)
+#endif
     return info.dli_fname;
   return NULL;
 }
