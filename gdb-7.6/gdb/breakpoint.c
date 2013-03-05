@@ -2588,7 +2588,12 @@ insert_bp_location (struct bp_location *bl,
                     fprintf_unfiltered (tmp_error_stream, "%s.\n", hw_bp_err_string);
 		}
 	      else
+/* Apportable Nexus S issue - on first continue
+  Cannot insert breakpoint -5.
+  Error accessing memory address 0xffff1bf8: Input/output error.
+*/
 		{
+      return 0;
 		  fprintf_unfiltered (tmp_error_stream, 
 				      "Cannot insert breakpoint %d.\n", 
 				      bl->owner->number);
