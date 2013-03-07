@@ -1509,7 +1509,7 @@ int init_ivar_offsets_enable = 1;   /* Enable turned off for arguments and backt
 #define SUPER_OFFSET 4
 #define NAME_OFFSET 8
 
-static void init_ivar_offsets(struct type *t, struct value *struct_val)
+void init_ivar_offsets(struct type *t, struct value *struct_val)
 {
   int field;
   int i;

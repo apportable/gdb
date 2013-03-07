@@ -682,6 +682,8 @@ extern struct value *value_one (struct type *type);
 
 extern struct value *value_repeat (struct value *arg1, int count);
 
+extern void init_ivar_offsets(struct type *t, struct value *struct_val);  /* APPORTABLE -for Objective C ivar offset initialization */
+
 extern struct value *value_subscript (struct value *array, LONGEST index);
 
 extern struct value *value_bitstring_subscript (struct type *type,
