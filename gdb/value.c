@@ -1512,6 +1512,8 @@ access_value_history (int num)
   struct value_history_chunk *chunk;
   int i;
   int absnum = num;
+  struct value *ret_val;
+  struct value *ivar_init_val;
 
   if (absnum <= 0)
     absnum += value_history_count;
@@ -1538,7 +1540,11 @@ access_value_history (int num)
        i > 0; i--)
     chunk = chunk->next;
 
-  return value_copy (chunk->values[absnum % VALUE_HISTORY_CHUNK]);
+  ret_val = value_copy(chunk->values[absnum % VALUE_HISTORY_CHUNK]);
+  ivar_init_val = value_copy(ret_val);
+  ivar_init_val->location.address = *(CORE_ADDR *)ivar_init_val->contents; /* need the actual value filled in for init_ivar_offsets */
+  init_ivar_offsets(ivar_init_val->type, ivar_init_val);
+  return ret_val;
 }
 
 static void
