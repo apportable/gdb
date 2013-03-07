@@ -1496,7 +1496,7 @@ static CORE_ADDR get_from_target_address(CORE_ADDR a, enum bfd_endian byte_order
 {
     char buf[4];
     if (target_read_memory (a, buf, sizeof (buf)) != 0) {
-      error (_("failure to get_from_target_address"));
+      return 0; /* if struct ptr is garbage (inaccessible) memory, return 0 will trigger the invalid isa path */
     }
     return extract_unsigned_integer (buf, sizeof (buf), byte_order);
 }
@@ -1562,7 +1562,17 @@ static void init_ivar_offsets(struct type *t, struct value *struct_val)
     enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
 
     CORE_ADDR base_addr = value_raw_address(struct_val);
+    if (base_addr == (CORE_ADDR)NULL) {
+      /* Don't try to get ivars, if pointer is null - there's no isa */
+      t->did_ivar_offsets = 0;
+      return;
+    }
     CORE_ADDR isa = get_from_target_address(base_addr, byte_order);
+    if (isa == 0) {
+      /* if isa is 0, give up */
+      t->did_ivar_offsets = 0;
+      return;
+    }
 
     for (a = t; /* ancestors */
          strcmp(a->main_type->tag_name, "NSObject") != 0;
