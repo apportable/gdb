@@ -110,7 +110,14 @@
 #endif
 #endif
 
-#ifndef HAVE_ELF32_AUXV_T
+/* Note: Define the following two struct Elf32_auxv_t and Elf64_auxv_t
+         even though they are recently defined in elf.h.  The problem is
+         that elf.h include sys/exec_elf.h which has inconsistent definition
+         of Elf64_Half: 32-bit vs. 16-bit in linux/elf.h.  Recent elf.h
+         update in bionic replaces kernel's elf dependencies with NetBSD's,
+         but it doesn't define elf_gregset_t and ELF_NGREG needed here.
+ */
+#if 1 /*ndef HAVE_ELF32_AUXV_T*/
 /* Copied from glibc's elf.h.  */
 typedef struct
 {
@@ -125,7 +132,7 @@ typedef struct
 } Elf32_auxv_t;
 #endif
 
-#ifndef HAVE_ELF64_AUXV_T
+#if 1 /*ndef HAVE_ELF64_AUXV_T*/
 /* Copied from glibc's elf.h.  */
 typedef struct
 {
