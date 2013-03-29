@@ -1492,14 +1492,6 @@ value_repeat (struct value *arg1, int count)
   return val;
 }
 
-static CORE_ADDR get_from_target_address(CORE_ADDR a, enum bfd_endian byte_order)
-{
-    char buf[4];
-    if (target_read_memory (a, buf, sizeof (buf)) != 0) {
-      return 0; /* if struct ptr is garbage (inaccessible) memory, return 0 will trigger the invalid isa path */
-    }
-    return extract_unsigned_integer (buf, sizeof (buf), byte_order);
-}
 
 int init_ivar_offsets_enable = 1;   /* Enable turned off for arguments and backtraces. Hack, but adding a parameter 
                                       would require too many code changes */
@@ -1509,6 +1501,129 @@ int init_ivar_offsets_enable = 1;   /* Enable turned off for arguments and backt
 #define IVAR_ENTRY_SIZE 12                /* char *name, char *type, int offset */
 #define SUPER_OFFSET 4
 #define NAME_OFFSET 8
+
+
+static CORE_ADDR get_from_target_address(CORE_ADDR a, enum bfd_endian byte_order)
+{
+    char buf[4];
+    if (target_read_memory (a, buf, sizeof (buf)) != 0) {
+      return 0; /* if struct ptr is garbage (inaccessible) memory, return 0 will trigger the invalid isa path */
+    }
+    return extract_unsigned_integer (buf, sizeof (buf), byte_order);
+}
+
+static void gnu_runtime_ivar_offsets(struct type *t, CORE_ADDR isa, enum bfd_endian byte_order)
+{
+  struct type *a;  /* ancestors */
+  for (a = t;
+       strcmp(a->main_type->tag_name, "NSObject") != 0;
+       a = TYPE_FIELD_TYPE(a, 0)) { 
+    gdb_byte *class_name;
+    CORE_ADDR name_ptr = get_from_target_address((int)isa + NAME_OFFSET, byte_order);
+    int bytes_read;
+    int errcode = read_string (name_ptr, -1, 1, UINT_MAX, byte_order, &class_name, &bytes_read);
+    a->did_ivar_offsets = 1; 
+    if (errcode) {
+      error (_("read_string failed for class name"));
+      return;
+    }
+    if (strcmp(class_name, a->main_type->tag_name) == 0) {
+      // aligned gdb and runtime class. get size right and continue
+      unsigned fix_sizeof = get_from_target_address((int)isa + INSTANCE_SIZE_OFFSET, byte_order);
+      if (a->length < fix_sizeof) a->length = fix_sizeof;
+      break;
+    }
+    isa = get_from_target_address((int)isa + SUPER_OFFSET, byte_order);
+    if (isa == 0) {
+      return;
+    }
+  }
+  {
+    CORE_ADDR ivars = get_from_target_address((int)isa + IVAR_TABLE_OFFSET, byte_order);
+    unsigned count = get_from_target_address(ivars, byte_order);
+    int i;
+
+    for (i = 0; i < count; i++) {
+      int bytes_read;
+      gdb_byte *buffer = NULL;  /* Dynamically growable fetch buffer.  */
+      unsigned ivar_entry_ptr = ivars + 4 + (i * IVAR_ENTRY_SIZE);
+      unsigned name_ptr = get_from_target_address(ivar_entry_ptr , byte_order);
+      int errcode = read_string (name_ptr, -1, 1, UINT_MAX, byte_order, &buffer, &bytes_read);
+      if (errcode) {
+        error (_("read_string failed for ivar name"));
+        return;
+      } else {
+        unsigned offset = get_from_target_address(ivar_entry_ptr + 8, byte_order);
+        int j;
+        for (j = TYPE_NFIELDS (a) - 1; j >= TYPE_N_BASECLASSES (a); j--) {
+          const char *field = TYPE_FIELD_NAME (a, j);
+          if (strcmp(field, buffer) == 0) {
+            TYPE_FIELD(a, j).loc.bitpos = offset * TARGET_CHAR_BIT;
+            break;
+          }
+        }
+      }
+    }
+  }
+}
+
+static void apple_runtime_ivar_offsets(struct type *t, CORE_ADDR isa, enum bfd_endian byte_order)
+{
+  struct type *a;  /* ancestors */
+  for (a = t;
+       strcmp(a->main_type->tag_name, "NSObject") != 0;
+       a = TYPE_FIELD_TYPE(a, 0)) {
+    a->did_ivar_offsets = 1;
+
+    // gdb misses types in class hierarchy so match it up here.
+    while (1) {
+      const char *symbol_name = lookup_minimal_symbol_by_pc(isa)->ginfo.name;
+      int sym_len = strlen(symbol_name);
+      int name_len = strlen(a->main_type->tag_name);
+      if (strncmp(symbol_name + sym_len - name_len, a->main_type->tag_name, name_len) == 0) {
+        // aligned gdb and runtime class.
+        break;
+
+      }
+      isa = get_from_target_address((int)isa + SUPER_OFFSET, byte_order);
+      if (isa == 0) {
+        return;
+      }
+    }
+    {
+      CORE_ADDR rw = get_from_target_address((int)isa + 16, byte_order);
+      CORE_ADDR ro = get_from_target_address((int)rw + 8, byte_order);
+      CORE_ADDR ivars = get_from_target_address((int)ro + 28, byte_order);
+      CORE_ADDR count = get_from_target_address((int)ivars + 4, byte_order);
+      int i;
+
+      for (i = 0; i < count; i++) {
+        int bytes_read;
+        gdb_byte *buffer = NULL;  /* Dynamically growable fetch buffer.  */
+        unsigned ivar_entry_ptr = ivars + 8 + (i * 20); /* (sizeof(ivar_t) */ 
+        unsigned name_ptr = get_from_target_address((int)ivar_entry_ptr + 4, byte_order);
+        int errcode = read_string (name_ptr, -1, 1, UINT_MAX, byte_order, &buffer, &bytes_read);
+        if (errcode) {
+          error (_("read_string failed for ivar name"));
+          return;
+        } else {
+          int j;
+          CORE_ADDR offset_ptr = get_from_target_address(ivar_entry_ptr, byte_order);
+          unsigned offset = get_from_target_address(offset_ptr, byte_order);
+          unsigned size = get_from_target_address((int)ivar_entry_ptr + 16, byte_order);
+          if ((offset + size) > a->length) a->length = offset + size; /* make sure gdb knows the right size */
+          for (j = TYPE_NFIELDS (a) - 1; j >= TYPE_N_BASECLASSES (a); j--) {
+            const char *field = TYPE_FIELD_NAME (a, j);
+            if (strcmp(field, buffer) == 0) {
+              TYPE_FIELD(a, j).loc.bitpos = offset * TARGET_CHAR_BIT;
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+}
 
 void init_ivar_offsets(struct type *t, struct value *struct_val)
 {
@@ -1555,7 +1670,6 @@ void init_ivar_offsets(struct type *t, struct value *struct_val)
 
   /* Find the ivar offsets */
   {
-    int i, j;
     struct objfile *objf;
     struct value *function = find_function_in_inferior("class_copyIvarList",  &objf);
     struct gdbarch *gdbarch = get_objfile_arch (objf);
@@ -1566,63 +1680,17 @@ void init_ivar_offsets(struct type *t, struct value *struct_val)
       /* Don't try to get ivars, if pointer is null - there's no isa */
       t->did_ivar_offsets = 0;
       return;
-    }
-    CORE_ADDR isa = get_from_target_address(base_addr, byte_order);
-    if (isa == 0) {
-      /* if isa is 0, give up */
-      t->did_ivar_offsets = 0;
-      return;
-    }
-
-    for (a = t; /* ancestors */
-         strcmp(a->main_type->tag_name, "NSObject") != 0;
-         a = TYPE_FIELD_TYPE(a, 0)) {
-      a->did_ivar_offsets = 1;
-
-      // gdb misses types in class hierarchy so match it up here.
-      while (1) {
-        gdb_byte *class_name;
-        CORE_ADDR name_ptr = get_from_target_address((int)isa + NAME_OFFSET, byte_order);
-        int bytes_read;
-        int errcode = read_string (name_ptr, -1, 1, UINT_MAX, byte_order, &class_name, &bytes_read);
-        if (errcode) {
-          error (_("read_string failed for class name"));
-          return;
-        }
-        if (strcmp(class_name, a->main_type->tag_name) == 0) {
-          // aligned gdb and runtime class. get size right and continue
-          unsigned fix_sizeof = get_from_target_address((int)isa + INSTANCE_SIZE_OFFSET, byte_order);
-          if (a->length < fix_sizeof) a->length = fix_sizeof;
-          break;
-        }
-        isa = get_from_target_address((int)isa + SUPER_OFFSET, byte_order);
-        if (isa == 0) {
-          return;
-        }
+    } else {
+      CORE_ADDR isa = get_from_target_address(base_addr, byte_order);
+      if (isa == 0) {
+        /* if isa is 0, give up */
+        t->did_ivar_offsets = 0;
+        return;
       }
-
-      CORE_ADDR ivars = get_from_target_address((int)isa + IVAR_TABLE_OFFSET, byte_order);
-      unsigned count = get_from_target_address(ivars, byte_order);
-
-      for (i = 0; i < count; i++) {
-        int bytes_read;
-        gdb_byte *buffer = NULL;  /* Dynamically growable fetch buffer.  */
-        unsigned ivar_entry_ptr = ivars + 4 + (i * IVAR_ENTRY_SIZE);
-        unsigned name_ptr = get_from_target_address(ivar_entry_ptr , byte_order);
-        int errcode = read_string (name_ptr, -1, 1, UINT_MAX, byte_order, &buffer, &bytes_read);
-        if (errcode) {
-          error (_("read_string failed for ivar name"));
-          return;
-        } else {
-          unsigned offset = get_from_target_address(ivar_entry_ptr + 8, byte_order);
-          for (j = TYPE_NFIELDS (a) - 1; j >= TYPE_N_BASECLASSES (a); j--) {
-            char *field = TYPE_FIELD_NAME (a, j);
-            if (strcmp(field, buffer) == 0) {
-              TYPE_FIELD(a, j).loc.bitpos = offset * TARGET_CHAR_BIT;
-              break;
-            }
-          }
-        }
+      if (lookup_minimal_symbol ("__objc_personality_v0", NULL, NULL)) {
+        apple_runtime_ivar_offsets(t, isa, byte_order);
+      } else {
+        gnu_runtime_ivar_offsets(t, isa, byte_order);
       }
     }
   }
