@@ -47,6 +47,7 @@
 #include "exceptions.h"
 #include "complaints.h"
 #include "valprint.h"
+#include "objc-lang.h"
 
 extern int overload_debug;
 /* Local functions.  */
@@ -1687,7 +1688,7 @@ void init_ivar_offsets(struct type *t, struct value *struct_val)
         t->did_ivar_offsets = 0;
         return;
       }
-      if (lookup_minimal_symbol ("__objc_personality_v0", NULL, NULL)) {
+      if (new_objc_runtime_internals()) {
         apple_runtime_ivar_offsets(t, isa, byte_order);
       } else {
         gnu_runtime_ivar_offsets(t, isa, byte_order);

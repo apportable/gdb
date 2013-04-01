@@ -53,4 +53,6 @@ extern int end_msglist (void);
 struct symbol *lookup_struct_typedef (char *name, struct block *block,
 				      int noerr);
 
+extern int new_objc_runtime_internals (void);
+
 #endif
