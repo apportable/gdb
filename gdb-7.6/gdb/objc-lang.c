@@ -1520,18 +1520,152 @@ find_implementation_from_class (struct gdbarch *gdbarch,
   return 0;
 }
 
+/* Do an inferior function call into the Objective-C runtime to find
+   the function address of a given class + selector.  
+
+   This function bears a remarkable resemblance to lookup_objc_class().
+   It uses a function call to do what find_implementation_from_class()
+   does by groping around in the old ObjC runtime's internal data structures
+   did.
+
+   This function will return 0 if the runtime is uninitialized or 
+   the runtime is not present.  */
+static int debug_objc = 0;
+
+static CORE_ADDR
+new_objc_runtime_find_impl (struct gdbarch *gdbarch, CORE_ADDR class, CORE_ADDR sel, int stret)
+{
+  struct value *function = NULL;
+  struct value *function_stret = NULL;
+  struct value *ret_value;
+  struct cleanup *scheduler_cleanup;
+  CORE_ADDR retval = 0;
+  struct objfile *objf;
+
+  if (!target_has_execution)
+    {
+      /* Can't call into inferior to lookup class.  */
+      return 0;
+    }
+
+  if (stret == 0 && function == NULL)
+    {
+      if (lookup_minimal_symbol ("class_getMethodImplementation", 0, 0))
+        function = find_function_in_inferior ("class_getMethodImplementation", &objf);
+      else
+        return 0;
+    }
+
+  if (stret == 1 && function_stret == NULL)
+    {
+      if (lookup_minimal_symbol ("class_getMethodImplementation_stret", 0, 0))
+        function_stret = find_function_in_inferior 
+                                       ("class_getMethodImplementation_stret", &objf);
+      else
+        return 0;
+    }
+
+    {
+      struct value *classval, *selval;
+      struct value *infargs[2];
+      char *imp_name;
+      struct type *char_type = builtin_type (gdbarch)->builtin_char;
+
+      classval = value_from_pointer (lookup_pointer_type (char_type), class);
+      selval = value_from_pointer (lookup_pointer_type(char_type), sel);
+
+      infargs[0] = classval;
+      infargs[1] = selval;
+      
+      if (debug_objc)
+        fprintf_unfiltered (gdb_stdlog, "new_objc_runtime_find_impl: Getting class from 0x%x.\n", (unsigned)class);
+      
+      ret_value = call_function_by_hand
+        (stret ? function_stret : function,
+         2, infargs);
+      
+      retval = (CORE_ADDR) value_as_address (ret_value);
+      // retval = gdbarch_addr_bits_remove (current_gdbarch, retval);
+      if (debug_objc)
+        fprintf_unfiltered (gdb_stdlog, "    new_objc_runtime_find_impl: Found implementation %x.\n", (unsigned)retval);
+      
+      /* If the current object doesn't respond to this selector, then
+         the implementation function will be "_objc_msgForward" or
+         "_objc_msgForward_stret".  We don't want to call those since
+         it is most likely just going to crash, and Greg says that not
+         all implementations of objc_msgForward follow the standard
+         ABI anyway...  */
+      // TODO 
+      // if (find_pc_partial_function_no_inlined (retval, &imp_name, NULL, NULL))
+      //   {
+      //     if (strcmp (imp_name, "_objc_msgForward") == 0
+      //         || strcmp (imp_name, "_objc_msgForward_stret") == 0)
+      //       {
+      //         retval = 0;
+      //       }
+      //   }
+    }
+  return retval;
+}
+
+
+static CORE_ADDR
+apple_find_implementation_from_class (struct gdbarch *gdbarch, CORE_ADDR class, CORE_ADDR sel)
+{
+  CORE_ADDR subclass = class;
+  char sel_str[2048];
+  int npasses;
+  int total_methods = 0;
+  CORE_ADDR implementation;
+
+  sel_str[0] = '\0';
+
+  if (debug_objc)
+    fprintf_unfiltered (gdb_stdlog, "Looking up implementation for class: 0x%x selector: 0x%x.\n",
+                       (unsigned)class, (unsigned)sel);
+
+#ifdef SEL_CACHE
+   implementation = lookup_implementation_in_cache (class, sel);
+   if (implementation != 0)
+     {
+       if (debug_objc)
+         fprintf_unfiltered (gdb_stdlog, "Found implementation 0x%x in cache.\n", (unsigned)implementation);
+       return implementation;
+     }
+#endif
+  return (new_objc_runtime_find_impl (gdbarch, class, sel, 0));
+}
+
+
+int new_objc_runtime_internals ()
+{
+  static int initialized = 0;
+  static int ret_val;
+  if (!initialized)
+  {
+    initialized = 1;
+    ret_val = lookup_minimal_symbol ("__objc_personality_v0", NULL, NULL) != NULL;
+  }
+  return ret_val;
+}
+
 static CORE_ADDR
 find_implementation (struct gdbarch *gdbarch,
 		     CORE_ADDR object, CORE_ADDR sel)
 {
+/* TODO add Apple caching and stret handling */
+
   struct objc_object ostr;
 
   if (object == 0)
-    return 0;
+        return 0;
   read_objc_object (gdbarch, object, &ostr);
   if (ostr.isa == 0)
-    return 0;
+        return 0;
 
+  if (new_objc_runtime_internals ()) {
+        return apple_find_implementation_from_class (gdbarch, ostr.isa, sel);
+  }
   return find_implementation_from_class (gdbarch, ostr.isa, sel);
 }
 
