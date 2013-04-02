@@ -47,6 +47,8 @@
 
 #include <ctype.h>
 
+static int debug_objc = 0;
+
 struct objc_object {
   CORE_ADDR isa;
 };
@@ -1113,6 +1115,41 @@ parse_method (char *method, char *type, char **class,
   return s2;
 }
 
+
+// This is an Objective C mangled function like _2D__5B_NSObject_28_Foundation_29__20_copyWithZone_3A__5D_
+
+static char get_val(char in)
+{
+  if (in >= '0' && in <= '9') return in - '0';
+  if (in >= 'A' && in <= 'F') return in - 'A' + 10;
+  fprintf_unfiltered (gdb_stdlog, "Error in get_val - in is %c\n", in);
+  return 0;
+}
+
+static char *demangle_new_objc(const char *in)
+{
+  // Make sure first four characters are encoding for '+' or '-'
+  if (!(in[0] == '_' && in[1] == '2' && in[3] == '_' && (in[2] == 'B' || in[2] == 'D'))) {
+    return 0;
+  } else {
+    const char *ptr = in;
+    char *out = malloc(strlen(in));
+    char *buf = out;
+
+    while (*ptr) {
+      if (*ptr == '_' && ptr[3] =='_') {
+        // Convert string of format _xx_ to ascii value of hex xx
+        *out++ = get_val(ptr[1]) * 16 + get_val(ptr[2]);
+        ptr += 4;
+      } else {
+        *out++ = *ptr++; 
+      }
+    }
+    *out = '\0';
+    return buf;
+  }
+}
+
 static void
 find_methods (char type, const char *class, const char *category, 
 	      const char *selector,
@@ -1161,10 +1198,15 @@ find_methods (char type, const char *class, const char *category,
 	  if (symname == NULL)
 	    continue;
 
-	  if ((symname[0] != '-' && symname[0] != '+') || (symname[1] != '['))
-	    /* Not a method name.  */
-	    continue;
-
+	  if ((symname[0] != '-' && symname[0] != '+') || (symname[1] != '[')) {
+	    /* Not a method name.  Try to demangle */
+      symname = demangle_new_objc(symname);
+      if (symname == NULL) {
+        continue;
+      } else {
+        symbol_set_demangled_name (&(msymbol->ginfo), (char *)symname, objfile);
+      }
+    }
 	  objfile_csym++;
 
 	  /* Now that thinks are a bit sane, clean up the symname.  */
@@ -1202,6 +1244,8 @@ find_methods (char type, const char *class, const char *category,
 	  objc_csym = obstack_alloc (&objfile->objfile_obstack,
 				     sizeof (*objc_csym));
 	  *objc_csym = objfile_csym;
+    if (debug_objc)
+      fprintf_unfiltered (gdb_stdlog, "set data for %s count is %d\n", objfile->name, *objc_csym);
 	  set_objfile_data (objfile, objc_objfile_data, objc_csym);
 	}
       else
@@ -1661,7 +1705,6 @@ find_implementation_from_class (struct gdbarch *gdbarch,
 
    This function will return 0 if the runtime is uninitialized or 
    the runtime is not present.  */
-static int debug_objc = 0;
 
 static CORE_ADDR
 new_objc_runtime_find_impl (struct gdbarch *gdbarch, CORE_ADDR class, CORE_ADDR sel, int stret)
@@ -1906,5 +1949,7 @@ extern initialize_file_ftype _initialize_objc_lang;
 void
 _initialize_objc_lang (void)
 {
+  if (debug_objc)
+    fprintf_unfiltered (gdb_stdlog, "In _initialize_objc_lang\n");
   objc_objfile_data = register_objfile_data ();
 }
