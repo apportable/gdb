@@ -1129,7 +1129,7 @@ static char get_val(char in)
 static char *demangle_new_objc(const char *in)
 {
   // Make sure first four characters are encoding for '+' or '-'
-  if (!(in[0] == '_' && in[1] == '2' && in[3] == '_' && (in[2] == 'B' || in[2] == 'D'))) {
+  if (!(in[0] == '_' && in[1] == '2' && (in[2] == 'B' || in[2] == 'D') && in[3] == '_')) {
     return 0;
   } else {
     const char *ptr = in;
@@ -1137,7 +1137,7 @@ static char *demangle_new_objc(const char *in)
     char *buf = out;
 
     while (*ptr) {
-      if (*ptr == '_' && ptr[3] =='_') {
+      if (*ptr == '_' && ptr[1] != '\0' && ptr[2] != '\0' && ptr[3] =='_') {
         // Convert string of format _xx_ to ascii value of hex xx
         *out++ = get_val(ptr[1]) * 16 + get_val(ptr[2]);
         ptr += 4;
