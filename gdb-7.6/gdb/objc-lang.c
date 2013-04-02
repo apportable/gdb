@@ -48,6 +48,8 @@
 
 #include <ctype.h>
 
+static int debug_objc = 0;
+
 struct objc_object {
   CORE_ADDR isa;
 };
@@ -1030,10 +1032,15 @@ find_methods (char type, const char *class, const char *category,
 	  if (symname == NULL)
 	    continue;
 
-	  if ((symname[0] != '-' && symname[0] != '+') || (symname[1] != '['))
-	    /* Not a method name.  */
-	    continue;
-
+	  if ((symname[0] != '-' && symname[0] != '+') || (symname[1] != '[')) {
+	    /* Not a method name.  Try to demangle */
+      symname = demangle_new_objc(symname);
+      if (symname == NULL) {
+        continue;
+      } else {
+        symbol_set_demangled_name (&(msymbol->ginfo), (char *)symname, objfile);
+      }
+    }
 	  objfile_csym++;
 
 	  /* Now that thinks are a bit sane, clean up the symname.  */
@@ -1071,6 +1078,8 @@ find_methods (char type, const char *class, const char *category,
 	  objc_csym = obstack_alloc (&objfile->objfile_obstack,
 				     sizeof (*objc_csym));
 	  *objc_csym = objfile_csym;
+    if (debug_objc)
+      fprintf_unfiltered (gdb_stdlog, "set data for %s count is %d\n", objfile->name, *objc_csym);
 	  set_objfile_data (objfile, objc_objfile_data, objc_csym);
 	}
       else
@@ -1530,7 +1539,6 @@ find_implementation_from_class (struct gdbarch *gdbarch,
 
    This function will return 0 if the runtime is uninitialized or 
    the runtime is not present.  */
-static int debug_objc = 0;
 
 static CORE_ADDR
 new_objc_runtime_find_impl (struct gdbarch *gdbarch, CORE_ADDR class, CORE_ADDR sel, int stret)
@@ -1775,5 +1783,7 @@ extern initialize_file_ftype _initialize_objc_lang;
 void
 _initialize_objc_lang (void)
 {
+  if (debug_objc)
+    fprintf_unfiltered (gdb_stdlog, "In _initialize_objc_lang\n");
   objc_objfile_data = register_objfile_data ();
 }
