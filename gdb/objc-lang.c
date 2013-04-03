@@ -1137,8 +1137,9 @@ static char *demangle_new_objc(const char *in)
     char *buf = out;
 
     while (*ptr) {
-      if (*ptr == '_' && ptr[1] != '\0' && ptr[2] != '\0' && ptr[3] =='_') {
+      if (*ptr == '_' && ptr[1] >= '0' && ptr[1] <= '9' && ptr[2] != '\0' && ptr[3] =='_') {
         // Convert string of format _xx_ to ascii value of hex xx
+        // The ptr[1] checks are for symbols like the "id" in _2D__5B_JMItem_20_item_id_5D_
         *out++ = get_val(ptr[1]) * 16 + get_val(ptr[2]);
         ptr += 4;
       } else {
