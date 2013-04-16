@@ -649,6 +649,7 @@ TCL_VERSION
 WIN32LDAPP
 GUI_CFLAGS_X
 LIBGUI
+lt_cv_dlopen_libs
 WIN32LIBS
 SER_HARDWIRE
 WERROR_CFLAGS
@@ -15048,6 +15049,21 @@ $as_echo "#define USE_WIN32API 1" >>confdefs.h
 esac
 
 
+for ac_header in dlfcn.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "dlfcn.h" "ac_cv_header_dlfcn_h" "$ac_includes_default"
+if test "x$ac_cv_header_dlfcn_h" = x""yes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_DLFCN_H 1
+_ACEOF
+ lt_cv_dlopen_libs="-ldl"
+else
+  lt_cv_dlopen_libs=""
+fi
+
+done
+
+
 # Add ELF support to GDB, but only if BFD includes ELF support.
 OLD_CFLAGS=$CFLAGS
 OLD_LDFLAGS=$LDFLAGS
@@ -15057,7 +15073,7 @@ LDFLAGS="$LDFLAGS -L../bfd -L../libiberty"
 intl=`echo $LIBINTL | sed 's,${top_builddir}/,,g'`
 # -ldl is provided by bfd/Makfile.am (LIBDL) <PLUGINS>.
 if test "$plugins" = "yes"; then
-  LIBS="-ldl $LIBS"
+  LIBS="$lt_cv_dlopen_libs $LIBS"
 fi
 LIBS="-lbfd -liberty $intl $LIBS"
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for ELF support in BFD" >&5
@@ -15096,7 +15112,7 @@ $as_echo "#define HAVE_ELF 1" >>confdefs.h
 
   # -ldl is provided by bfd/Makfile.am (LIBDL) <PLUGINS>.
   if test "$plugins" = "yes"; then
-    OLD_LIBS="-ldl $OLD_LIBS"
+    OLD_LIBS="$lt_cv_dlopen_libs $OLD_LIBS"
   fi
 fi
 CFLAGS=$OLD_CFLAGS

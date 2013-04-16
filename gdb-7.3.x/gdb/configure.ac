@@ -1889,6 +1889,8 @@ case ${host} in
 esac	    
 AC_SUBST(WIN32LIBS)
 
+AC_CHECK_HEADERS(dlfcn.h,lt_cv_dlopen_libs="-ldl",lt_cv_dlopen_libs="")
+AC_SUBST([lt_cv_dlopen_libs])
 # Add ELF support to GDB, but only if BFD includes ELF support.
 OLD_CFLAGS=$CFLAGS
 OLD_LDFLAGS=$LDFLAGS
@@ -1898,7 +1900,7 @@ LDFLAGS="$LDFLAGS -L../bfd -L../libiberty"
 intl=`echo $LIBINTL | sed 's,${top_builddir}/,,g'`
 # -ldl is provided by bfd/Makfile.am (LIBDL) <PLUGINS>.
 if test "$plugins" = "yes"; then
-  LIBS="-ldl $LIBS"
+  LIBS="$lt_cv_dlopen_libs $LIBS"
 fi
 LIBS="-lbfd -liberty $intl $LIBS"
 AC_CACHE_CHECK([for ELF support in BFD], gdb_cv_var_elf,
@@ -1915,7 +1917,7 @@ if test $gdb_cv_var_elf = yes; then
 	    [Define if ELF support should be included.])
   # -ldl is provided by bfd/Makfile.am (LIBDL) <PLUGINS>.
   if test "$plugins" = "yes"; then
-    OLD_LIBS="-ldl $OLD_LIBS"
+    OLD_LIBS="$lt_cv_dlopen_libs $OLD_LIBS"
   fi
 fi
 CFLAGS=$OLD_CFLAGS
