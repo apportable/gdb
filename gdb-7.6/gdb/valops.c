@@ -194,7 +194,7 @@ struct value *
 value_allocate_space_in_inferior (int len)
 {
   struct objfile *objf;
-  struct value *val = find_function_in_inferior ("malloc", &objf);
+  struct value *val = find_function_in_inferior ("__wrap_malloc", &objf);
   struct gdbarch *gdbarch = get_objfile_arch (objf);
   struct value *blocklen;
 
