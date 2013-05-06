@@ -54,9 +54,14 @@
    order to ensure we can convert to and from wchar_t.  We choose
    libiconv version 0x108 because it is the first version with
    iconvlist.  */
+/*
 #if defined (HAVE_ICONV) && defined (HAVE_WCHAR_H) && defined (HAVE_BTOWC) \
   && (defined (__STDC_ISO_10646__) \
       || (defined (_LIBICONV_VERSION) && _LIBICONV_VERSION >= 0x108))
+*/
+#if 0
+// Apportable - wchar handling causes crashes and infinite loops when 
+// printing garbled/uninitialized data
 
 #include <wchar.h>
 #include <wctype.h>
