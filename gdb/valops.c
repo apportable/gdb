@@ -1589,13 +1589,18 @@ static void apple_runtime_ivar_offsets(struct type *t, CORE_ADDR isa, enum bfd_e
 
     // gdb misses types in class hierarchy so match it up here.
     while (1) {
-      const char *symbol_name = lookup_minimal_symbol_by_pc(isa)->ginfo.name;
-      int sym_len = strlen(symbol_name);
-      int name_len = strlen(a->main_type->tag_name);
-      if (strncmp(symbol_name + sym_len - name_len, a->main_type->tag_name, name_len) == 0) {
-        // aligned gdb and runtime class.
-        break;
-
+      struct minimal_symbol *symbol = lookup_minimal_symbol_by_pc(isa);
+      if (symbol == NULL) {
+        error (_("No debug symbol for isa. Cannot find ivars"));
+        return;
+      } else {
+        const char *symbol_name = lookup_minimal_symbol_by_pc(isa)->ginfo.name;
+        int sym_len = strlen(symbol_name);
+        int name_len = strlen(a->main_type->tag_name);
+        if (strncmp(symbol_name + sym_len - name_len, a->main_type->tag_name, name_len) == 0) {
+          // aligned gdb and runtime class.
+          break;
+        }
       }
       isa = get_from_target_address((int)isa + SUPER_OFFSET, byte_order);
       if (isa == 0) {
