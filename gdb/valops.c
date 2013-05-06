@@ -1018,12 +1018,19 @@ value_fetch_lazy (struct value *val)
     }
   else if (VALUE_LVAL (val) == lval_memory)
     {
+      struct type *type = value_type(val);
+      if (TYPE_CODE (type) == TYPE_CODE_STRUCT) {
+        /* Make sure ivar offsets are set up for expressions like - p *(struct SpinView *) 0x695a4660 */
+        init_ivar_offsets(value_type(val), val);
+      }
+      {
       CORE_ADDR addr = value_address (val);
       int length = TYPE_LENGTH (check_typedef (value_enclosing_type (val)));
 
       if (length)
 	read_value_memory (val, 0, value_stack (val),
 			   addr, value_contents_all_raw (val), length);
+      }
     }
   else if (VALUE_LVAL (val) == lval_register)
     {
