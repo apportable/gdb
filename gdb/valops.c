@@ -1579,64 +1579,40 @@ static void gnu_runtime_ivar_offsets(struct type *t, CORE_ADDR isa, enum bfd_end
   }
 }
 
+#define IVAR_OFFSET_PREFIX "OBJC_IVAR_$_"
+
 static void apple_runtime_ivar_offsets(struct type *t, CORE_ADDR isa, enum bfd_endian byte_order)
 {
   struct type *a;  /* ancestors */
   for (a = t;
        strcmp(a->main_type->tag_name, "NSObject") != 0;
        a = TYPE_FIELD_TYPE(a, 0)) {
+    const char *class_name = a->main_type->tag_name;
+    int i;
     a->did_ivar_offsets = 1;
 
-    // gdb misses types in class hierarchy so match it up here.
-    while (1) {
-      struct minimal_symbol *symbol = lookup_minimal_symbol_by_pc(isa);
-      if (symbol == NULL) {
-        error (_("No debug symbol for isa. Cannot find ivars"));
-        return;
-      } else {
-        const char *symbol_name = lookup_minimal_symbol_by_pc(isa)->ginfo.name;
-        int sym_len = strlen(symbol_name);
-        int name_len = strlen(a->main_type->tag_name);
-        if (strncmp(symbol_name + sym_len - name_len, a->main_type->tag_name, name_len) == 0) {
-          // aligned gdb and runtime class.
-          break;
-        }
-      }
-      isa = get_from_target_address((int)isa + SUPER_OFFSET, byte_order);
-      if (isa == 0) {
-        return;
-      }
-    }
-    {
-      CORE_ADDR rw = get_from_target_address((int)isa + 16, byte_order);
-      CORE_ADDR ro = get_from_target_address((int)rw + 8, byte_order);
-      CORE_ADDR ivars = get_from_target_address((int)ro + 28, byte_order);
-      CORE_ADDR count = get_from_target_address((int)ivars + 4, byte_order);
-      int i;
+    for (i = TYPE_N_BASECLASSES (a); i < TYPE_NFIELDS (a); i++) {
 
-      for (i = 0; i < count; i++) {
-        int bytes_read;
-        gdb_byte *buffer = NULL;  /* Dynamically growable fetch buffer.  */
-        unsigned ivar_entry_ptr = ivars + 8 + (i * 20); /* (sizeof(ivar_t) */ 
-        unsigned name_ptr = get_from_target_address((int)ivar_entry_ptr + 4, byte_order);
-        int errcode = read_string (name_ptr, -1, 1, UINT_MAX, byte_order, &buffer, &bytes_read);
-        if (errcode) {
-          error (_("read_string failed for ivar name"));
-          return;
-        } else {
-          int j;
-          CORE_ADDR offset_ptr = get_from_target_address(ivar_entry_ptr, byte_order);
-          unsigned offset = get_from_target_address(offset_ptr, byte_order);
-          unsigned size = get_from_target_address((int)ivar_entry_ptr + 16, byte_order);
-          if ((offset + size) > a->length) a->length = offset + size; /* make sure gdb knows the right size */
-          for (j = TYPE_NFIELDS (a) - 1; j >= TYPE_N_BASECLASSES (a); j--) {
-            const char *field = TYPE_FIELD_NAME (a, j);
-            if (strcmp(field, buffer) == 0) {
-              TYPE_FIELD(a, j).loc.bitpos = offset * TARGET_CHAR_BIT;
-              break;
-            }
-          }
-        }
+      int prefix_len = strlen (IVAR_OFFSET_PREFIX);
+      const char *field = TYPE_FIELD_NAME (a, i);
+      int len = prefix_len + strlen (class_name) + strlen (field) + 1 + 1;
+      char *symbol_name = xmalloc (len);
+      struct minimal_symbol *ivar_sym;
+      CORE_ADDR ivar_addr;
+
+      snprintf (symbol_name, len, "%s%s.%s", IVAR_OFFSET_PREFIX, class_name, field);
+      
+      ivar_sym = lookup_minimal_symbol (symbol_name, NULL, NULL);
+
+      if (ivar_sym) {
+        ivar_addr = SYMBOL_VALUE_ADDRESS (ivar_sym);
+
+        unsigned offset = get_from_target_address((int)ivar_addr, byte_order);
+        
+        unsigned ivar_len = TYPE_LENGTH (check_typedef (TYPE_FIELD_TYPE (a, i)));
+        if ((offset + ivar_len) > a->length) a->length = offset + ivar_len; /* make sure gdb knows the right type size */
+
+        TYPE_FIELD(a, i).loc.bitpos = offset * TARGET_CHAR_BIT;
       }
     }
   }
