@@ -48,7 +48,7 @@ static char pyver_string[]=
 #elif defined(HAVE_LIBPYTHON2_6)
   "2.6";
 #elif defined(HAVE_LIBPYTHON2_7)
-  "2.7.3";
+  "2.7.4";
 #endif
 
 /* Android NDK-isms. Used to aid finding
@@ -1041,8 +1041,8 @@ size_t add_clue(size_t n_so_far, char** clues, char* new_clue)
     and Python.
    For my latest release, I've ended up with a layout that I don't think I'm
     going to go with long-term:
-    Python has a prefix of toolchains/prebuilt/linux-x86/python-2.7.3
-    but I'm thinking of dropping the final python-2.7.3 folder.
+    Python has a prefix of toolchains/prebuilt/linux-x86/python-2.7.4
+    but I'm thinking of dropping the final python-2.7.4 folder.
     See notes [1] and [2] below for more details.
 */
 void find_python_executable_and_pythonhome(char** python_executable,
@@ -1063,7 +1063,7 @@ void find_python_executable_and_pythonhome(char** python_executable,
   char* binexesuffix;
   char* gdb_program_name_n;
   /* Clues always include binexesuffix */
-  char* clues[4];
+  char* clues[5];
   size_t n_clues = 0;
   size_t counter;
   struct OS_STAT buf;
@@ -1154,6 +1154,9 @@ void find_python_executable_and_pythonhome(char** python_executable,
     n_clues = add_clue(n_clues, clues, concat(slash_string, "prebuilt",
                        slash_string, host_name_string, "-", host_arch_string,
           slash_string, "python-", pyver_string, binexesuffix, NULL));
+    /* this is for a relocated toolchain where
+       python has been placed alongside gdb */
+    n_clues = add_clue(n_clues, clues, concat(slash_string, PYTHON_EXE, NULL));
 
     temp = strrchr(gdb_program_name_n,slash_string[0]);
     if (debug_this) fprintf(stderr,"temp  is %s\n",temp);
