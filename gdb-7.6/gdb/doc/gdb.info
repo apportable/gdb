@@ -1,0 +1,658 @@
+This is gdb.info, produced by makeinfo version 4.13 from ./gdb.texinfo.
+
+INFO-DIR-SECTION Software development
+START-INFO-DIR-ENTRY
+* Gdb: (gdb).                     The GNU debugger.
+END-INFO-DIR-ENTRY
+
+   Copyright (C) 1988-2013 Free Software Foundation, Inc.
+
+   Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with the
+Invariant Sections being "Free Software" and "Free Software Needs Free
+Documentation", with the Front-Cover Texts being "A GNU Manual," and
+with the Back-Cover Texts as in (a) below.
+
+   (a) The FSF's Back-Cover Text is: "You are free to copy and modify
+this GNU Manual.  Buying copies from GNU Press supports the FSF in
+developing GNU and promoting software freedom."
+
+   This file documents the GNU debugger GDB.
+
+   This is the Tenth Edition, of `Debugging with GDB: the GNU
+Source-Level Debugger' for GDB (GDB) Version 7.6.
+
+   Copyright (C) 1988-2013 Free Software Foundation, Inc.
+
+   Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with the
+Invariant Sections being "Free Software" and "Free Software Needs Free
+Documentation", with the Front-Cover Texts being "A GNU Manual," and
+with the Back-Cover Texts as in (a) below.
+
+   (a) The FSF's Back-Cover Text is: "You are free to copy and modify
+this GNU Manual.  Buying copies from GNU Press supports the FSF in
+developing GNU and promoting software freedom."
+
+
+Indirect:
+gdb.info-1: 1647
+gdb.info-2: 299874
+gdb.info-3: 606490
+gdb.info-4: 899724
+gdb.info-5: 1197122
+gdb.info-6: 1472288
+gdb.info-7: 1654694
+
+Tag Table:
+(Indirect)
+Node: Top1647
+Node: Summary5075
+Node: Free Software6948
+Node: Free Documentation7689
+Node: Contributors12624
+Node: Sample Session20718
+Node: Invocation27554
+Node: Invoking GDB28098
+Node: File Options30411
+Node: Mode Options33469
+Ref: -nx33696
+Ref: -nh34785
+Node: Startup40883
+Ref: Home Directory Init File41434
+Ref: Option -init-eval-command41544
+Ref: Init File in the Current Directory during Startup41889
+Ref: Startup-Footnote-144083
+Node: Quitting GDB44192
+Node: Shell Commands45089
+Node: Logging Output46016
+Node: Commands46862
+Node: Command Syntax47500
+Node: Completion49666
+Ref: Completion-Footnote-155030
+Node: Help55190
+Node: Running60559
+Node: Compilation61788
+Node: Starting63872
+Node: Arguments72797
+Node: Environment74067
+Node: Working Directory77335
+Node: Input/Output78487
+Node: Attach80458
+Node: Kill Process82925
+Node: Inferiors and Programs83906
+Node: Threads91151
+Ref: set libthread-db-search-path98560
+Node: Forks100618
+Node: Checkpoint/Restart106928
+Ref: Checkpoint/Restart-Footnote-1111457
+Node: Stopping111492
+Node: Breakpoints112755
+Node: Set Breaks116298
+Node: Set Watchpoints135031
+Node: Set Catchpoints144434
+Node: Delete Breaks154944
+Node: Disabling156880
+Node: Conditions160269
+Node: Break Commands165917
+Node: Dynamic Printf169139
+Node: Save Breakpoints173399
+Node: Static Probe Points174574
+Node: Error in Breakpoints177261
+Node: Breakpoint-related Warnings177997
+Node: Continuing and Stepping180324
+Node: Skipping Over Functions and Files189710
+Node: Signals193282
+Ref: extra signal information197712
+Node: Thread Stops199215
+Node: All-Stop Mode200314
+Node: Non-Stop Mode204212
+Node: Background Execution207689
+Node: Thread-Specific Breakpoints210258
+Node: Interrupted System Calls211580
+Node: Observer Mode213094
+Node: Reverse Execution216533
+Ref: Reverse Execution-Footnote-1221160
+Ref: Reverse Execution-Footnote-2221787
+Node: Process Record and Replay221837
+Node: Stack234129
+Node: Frames235622
+Node: Backtrace238374
+Ref: Backtrace-Footnote-1243999
+Node: Selection244187
+Node: Frame Info247051
+Node: Source249045
+Node: List250111
+Node: Specify Location252773
+Node: Edit257377
+Ref: Edit-Footnote-1258852
+Node: Search259087
+Node: Source Path259895
+Ref: set substitute-path266262
+Node: Machine Code268483
+Node: Data275384
+Node: Expressions283054
+Node: Ambiguous Expressions285146
+Node: Variables288380
+Node: Arrays293998
+Node: Output Formats296529
+Ref: Output Formats-Footnote-1299717
+Node: Memory299874
+Node: Auto Display306028
+Node: Print Settings310570
+Ref: set print entry-values318150
+Node: Pretty Printing329395
+Node: Pretty-Printer Introduction329908
+Node: Pretty-Printer Example331663
+Node: Pretty-Printer Commands332441
+Node: Value History334865
+Node: Convenience Vars337286
+Node: Convenience Funs341868
+Node: Registers343049
+Ref: Registers-Footnote-1347726
+Node: Floating Point Hardware348121
+Node: Vector Unit348653
+Node: OS Information349040
+Ref: linux info os infotypes351063
+Node: Memory Region Attributes355263
+Node: Dump/Restore Files359933
+Node: Core File Generation362238
+Node: Character Sets363462
+Node: Caching Remote Data369827
+Ref: Caching Remote Data-Footnote-1372092
+Node: Searching Memory372330
+Node: Optimized Code375207
+Node: Inline Functions376884
+Node: Tail Call Frames379511
+Ref: set debug entry-values381651
+Node: Macros385725
+Ref: Macros-Footnote-1393301
+Node: Tracepoints393454
+Node: Set Tracepoints395515
+Node: Create and Delete Tracepoints398453
+Node: Enable and Disable Tracepoints404853
+Node: Tracepoint Passcounts406093
+Node: Tracepoint Conditions407520
+Node: Trace State Variables409214
+Node: Tracepoint Actions411404
+Node: Listing Tracepoints417709
+Node: Listing Static Tracepoint Markers419411
+Node: Starting and Stopping Trace Experiments421257
+Ref: disconnected tracing423002
+Node: Tracepoint Restrictions427382
+Node: Analyze Collected Data431152
+Node: tfind432457
+Node: tdump436879
+Node: save tracepoints439394
+Node: Tracepoint Variables439890
+Node: Trace Files441018
+Node: Overlays442476
+Node: How Overlays Work443196
+Ref: A code overlay445756
+Node: Overlay Commands449194
+Node: Automatic Overlay Debugging453384
+Node: Overlay Sample Program455525
+Node: Languages457285
+Node: Setting458448
+Node: Filenames460150
+Node: Manually460961
+Node: Automatically462170
+Node: Show463231
+Node: Checks464553
+Node: Type Checking465558
+Node: Range Checking467387
+Node: Supported Languages469788
+Node: C471088
+Node: C Operators472052
+Node: C Constants476371
+Node: C Plus Plus Expressions479252
+Node: C Defaults482595
+Node: C Checks483263
+Node: Debugging C483823
+Node: Debugging C Plus Plus484307
+Node: Decimal Floating Point487765
+Node: D489024
+Node: Go489281
+Node: Objective-C490375
+Node: Method Names in Commands490838
+Node: The Print Command with Objective-C492533
+Node: OpenCL C493184
+Node: OpenCL C Datatypes493459
+Node: OpenCL C Expressions493834
+Node: OpenCL C Operators494191
+Node: Fortran494423
+Node: Fortran Operators495145
+Node: Fortran Defaults496001
+Node: Special Fortran Commands496386
+Node: Pascal496892
+Node: Modula-2497407
+Node: M2 Operators498382
+Node: Built-In Func/Proc501381
+Node: M2 Constants504242
+Node: M2 Types505843
+Node: M2 Defaults509062
+Node: Deviations509662
+Node: M2 Checks510763
+Node: M2 Scope511581
+Node: GDB/M2512605
+Node: Ada513517
+Node: Ada Mode Intro514580
+Node: Omissions from Ada516490
+Node: Additions to Ada520844
+Node: Stopping Before Main Program524774
+Node: Ada Tasks525303
+Node: Ada Tasks and Core Files531716
+Node: Ravenscar Profile532634
+Node: Ada Glitches533704
+Node: Unsupported Languages536498
+Node: Symbols537188
+Node: Altering554556
+Node: Assignment555525
+Node: Jumping558630
+Node: Signaling560791
+Node: Returning561924
+Node: Calling565276
+Node: Patching568303
+Node: GDB Files569380
+Node: Files570100
+Ref: Shared Libraries582945
+Ref: Files-Footnote-1594579
+Node: Separate Debug Files594754
+Ref: debug-file-directory597861
+Node: MiniDebugInfo606490
+Node: Index Files608594
+Node: Symbol Errors610656
+Node: Data Files614269
+Node: Targets615225
+Node: Active Targets616705
+Node: Target Commands617779
+Ref: load622052
+Node: Byte Order623033
+Node: Remote Debugging624010
+Node: Connecting625272
+Node: File Transfer630212
+Node: Server631152
+Ref: Monitor Commands for gdbserver641374
+Ref: Server-Footnote-1646028
+Node: Remote Configuration646148
+Ref: set remotebreak647172
+Ref: set remote hardware-watchpoint-limit648636
+Ref: set remote hardware-breakpoint-limit648636
+Ref: set remote hardware-watchpoint-length-limit648862
+Ref: set remote exec-file649277
+Node: Remote Stub656356
+Node: Stub Contents659253
+Node: Bootstrapping661360
+Node: Debug Session665169
+Node: Configurations667211
+Node: Native667980
+Node: HP-UX668549
+Node: BSD libkvm Interface668838
+Node: SVR4 Process Information669909
+Node: DJGPP Native673713
+Node: Cygwin Native680293
+Node: Non-debug DLL Symbols684242
+Node: Hurd Native688790
+Node: Darwin694051
+Node: Embedded OS695312
+Node: VxWorks695788
+Node: VxWorks Connection698005
+Node: VxWorks Download698939
+Node: VxWorks Attach700674
+Node: Embedded Processors701072
+Node: ARM702251
+Node: M32R/D706372
+Node: M68K708074
+Node: MicroBlaze708367
+Node: MIPS Embedded709817
+Node: OpenRISC 1000714755
+Node: PowerPC Embedded717624
+Node: PA721391
+Node: Sparclet721675
+Node: Sparclet File723145
+Node: Sparclet Connection724025
+Node: Sparclet Download724503
+Node: Sparclet Execution725552
+Node: Sparclite726143
+Node: Z8000726518
+Node: AVR727902
+Node: CRIS728265
+Node: Super-H729243
+Node: Architectures730303
+Node: AArch64730728
+Node: i386731135
+Node: Alpha731834
+Node: MIPS731967
+Node: HPPA735860
+Node: SPU736379
+Node: PowerPC738567
+Node: Controlling GDB739285
+Node: Prompt740182
+Node: Editing741901
+Node: Command History742844
+Node: Screen Size746248
+Node: Numbers748082
+Node: ABI750059
+Node: Auto-loading753233
+Ref: set auto-load off754100
+Ref: show auto-load754736
+Ref: info auto-load755515
+Node: Init File in the Current Directory759096
+Ref: set auto-load local-gdbinit759671
+Ref: show auto-load local-gdbinit759853
+Ref: info auto-load local-gdbinit760017
+Node: libthread_db.so.1 file760165
+Ref: set auto-load libthread-db761102
+Ref: show auto-load libthread-db761233
+Ref: info auto-load libthread-db761370
+Node: objfile-gdb.gdb file761554
+Ref: set auto-load gdb-scripts762163
+Ref: show auto-load gdb-scripts762287
+Ref: info auto-load gdb-scripts762417
+Node: Auto-loading safe path762648
+Ref: set auto-load safe-path763952
+Ref: show auto-load safe-path764691
+Ref: add-auto-load-safe-path764814
+Node: Auto-loading verbose mode767708
+Ref: set debug auto-load768871
+Ref: show debug auto-load768972
+Node: Messages/Warnings769094
+Ref: confirmation requests770529
+Node: Debugging Output771736
+Node: Other Misc Settings779570
+Node: Extending GDB780599
+Node: Sequences782227
+Node: Define782822
+Node: Hooks786623
+Node: Command Files788990
+Node: Output794060
+Node: Python798993
+Node: Python Commands800168
+Node: Python API802503
+Node: Basic Python804554
+Ref: prompt_hook812020
+Node: Exception Handling812617
+Node: Values From Inferior815113
+Node: Types In Python826764
+Node: Pretty Printing API835670
+Node: Selecting Pretty-Printers839563
+Node: Writing a Pretty-Printer841896
+Node: Type Printing API847217
+Node: Inferiors In Python849823
+Node: Events In Python852700
+Node: Threads In Python857881
+Node: Commands In Python860324
+Node: Parameters In Python869510
+Node: Functions In Python874971
+Node: Progspaces In Python877193
+Node: Objfiles In Python878708
+Node: Frames In Python880800
+Node: Blocks In Python886855
+Node: Symbols In Python889660
+Node: Symbol Tables In Python896925
+Node: Breakpoints In Python899724
+Node: Finish Breakpoints in Python906836
+Node: Lazy Strings In Python908943
+Node: Architectures In Python911178
+Node: Python Auto-loading913365
+Ref: set auto-load python-scripts914029
+Ref: show auto-load python-scripts914129
+Ref: info auto-load python-scripts914235
+Node: objfile-gdb.py file915404
+Ref: set auto-load scripts-directory916578
+Ref: with-auto-load-dir916954
+Ref: show auto-load scripts-directory917772
+Node: dotdebug_gdb_scripts section918101
+Node: Which flavor to choose?919622
+Node: Python modules921448
+Node: gdb.printing921834
+Node: gdb.types923248
+Node: gdb.prompt926278
+Node: Aliases927927
+Node: Interpreters930770
+Node: TUI932869
+Node: TUI Overview933816
+Node: TUI Keys936249
+Node: TUI Single Key Mode938553
+Node: TUI Commands939428
+Node: TUI Configuration941812
+Node: Emacs943108
+Node: GDB/MI948582
+Node: GDB/MI General Design950493
+Node: Context management953016
+Node: Asynchronous and non-stop modes956151
+Node: Thread groups958143
+Node: GDB/MI Command Syntax960421
+Node: GDB/MI Input Syntax960664
+Node: GDB/MI Output Syntax962218
+Node: GDB/MI Compatibility with CLI965790
+Node: GDB/MI Development and Front Ends966527
+Node: GDB/MI Output Records968184
+Node: GDB/MI Result Records968590
+Node: GDB/MI Stream Records969596
+Node: GDB/MI Async Records970861
+Node: GDB/MI Breakpoint Information980481
+Node: GDB/MI Frame Information984433
+Node: GDB/MI Thread Information985520
+Node: GDB/MI Ada Exception Information986499
+Node: GDB/MI Simple Examples986922
+Node: GDB/MI Command Description Format989130
+Node: GDB/MI Breakpoint Commands990010
+Node: GDB/MI Catchpoint Commands1007953
+Node: GDB/MI Program Context1009645
+Node: GDB/MI Thread Commands1013915
+Node: GDB/MI Ada Tasking Commands1017871
+Node: GDB/MI Program Execution1020125
+Node: GDB/MI Stack Manipulation1031911
+Node: GDB/MI Variable Objects1042813
+Ref: -var-set-format1052716
+Ref: -var-list-children1053834
+Ref: -var-update1062181
+Ref: -var-set-frozen1065176
+Ref: -var-set-update-range1065972
+Ref: -var-set-visualizer1066502
+Node: GDB/MI Data Manipulation1067999
+Node: GDB/MI Tracepoint Commands1087424
+Node: GDB/MI Symbol Query1094895
+Node: GDB/MI File Commands1095584
+Node: GDB/MI Target Manipulation1098880
+Node: GDB/MI File Transfer Commands1105102
+Node: GDB/MI Miscellaneous Commands1106424
+Ref: -interpreter-exec1119016
+Node: Annotations1121352
+Node: Annotations Overview1122271
+Node: Server Prefix1124734
+Node: Prompting1125468
+Node: Errors1126985
+Node: Invalidation1127881
+Node: Annotations for Running1128358
+Node: Source Annotations1129878
+Node: JIT Interface1130803
+Node: Declarations1132603
+Node: Registering Code1133990
+Node: Unregistering Code1134962
+Node: Custom Debug Info1135589
+Node: Using JIT Debug Info Readers1136885
+Node: Writing JIT Debug Info Readers1137900
+Node: In-Process Agent1140097
+Ref: Control Agent1142040
+Node: In-Process Agent Protocol1142907
+Node: IPA Protocol Objects1143699
+Ref: agent expression object1144701
+Ref: tracepoint action object1144907
+Ref: tracepoint object1144988
+Node: IPA Protocol Commands1147944
+Node: GDB Bugs1149399
+Node: Bug Criteria1150131
+Node: Bug Reporting1151008
+Node: Command Line Editing1158631
+Node: Introduction and Notation1159283
+Node: Readline Interaction1160903
+Node: Readline Bare Essentials1162092
+Node: Readline Movement Commands1163879
+Node: Readline Killing Commands1164842
+Node: Readline Arguments1166760
+Node: Searching1167802
+Node: Readline Init File1169951
+Node: Readline Init File Syntax1171102
+Node: Conditional Init Constructs1186160
+Node: Sample Init File1188691
+Node: Bindable Readline Commands1191806
+Node: Commands For Moving1192861
+Node: Commands For History1193720
+Node: Commands For Text1197122
+Node: Commands For Killing1199846
+Node: Numeric Arguments1201986
+Node: Commands For Completion1203123
+Node: Keyboard Macros1205090
+Node: Miscellaneous Commands1205659
+Node: Readline vi Mode1209513
+Node: Using History Interactively1210423
+Node: History Interaction1210966
+Node: Event Designators1212388
+Node: Word Designators1213528
+Node: Modifiers1215165
+Node: In Memoriam1216388
+Node: Formatting Documentation1217271
+Ref: Formatting Documentation-Footnote-11220584
+Node: Installing GDB1220648
+Node: Requirements1221220
+Ref: Expat1221789
+Node: Running Configure1224361
+Node: Separate Objdir1227900
+Node: Config Names1230784
+Node: Configure Options1232229
+Node: System-wide configuration1234599
+Node: Maintenance Commands1236466
+Ref: maint info breakpoints1238120
+Node: Remote Protocol1252639
+Node: Overview1253293
+Ref: Binary Data1255855
+Node: Packets1258378
+Ref: thread-id syntax1259278
+Ref: extended mode1260723
+Ref: bc1262444
+Ref: bs1262654
+Ref: read registers packet1264258
+Ref: cycle step packet1266191
+Ref: write register packet1268067
+Ref: step with signal packet1269063
+Ref: vCont packet1270517
+Ref: X packet1275491
+Ref: insert breakpoint or watchpoint packet1275777
+Node: Stop Reply Packets1279814
+Node: General Query Packets1284554
+Ref: QNonStop1294766
+Ref: QPassSignals1295390
+Ref: QProgramSignals1296559
+Ref: qSearch memory1299035
+Ref: QStartNoAckMode1299533
+Ref: qSupported1300063
+Ref: multiprocess extensions1310236
+Ref: install tracepoint in tracing1312265
+Ref: qXfer read1315622
+Ref: qXfer auxiliary vector read1316116
+Ref: qXfer btrace read1316463
+Ref: qXfer target description read1317082
+Ref: qXfer library list read1317526
+Ref: qXfer svr4 library list read1318181
+Ref: qXfer memory map read1318816
+Ref: qXfer sdata read1319202
+Ref: qXfer siginfo read1319666
+Ref: qXfer spu read1320062
+Ref: qXfer threads read1320585
+Ref: qXfer traceframe info read1320987
+Ref: qXfer unwind info block1321403
+Ref: qXfer fdpic loadmap read1321635
+Ref: qXfer osdata read1322050
+Ref: qXfer write1323252
+Ref: qXfer siginfo write1323809
+Ref: qXfer spu write1324205
+Ref: General Query Packets-Footnote-11326732
+Node: Architecture-Specific Protocol Details1327059
+Node: ARM-Specific Protocol Details1327568
+Node: ARM Breakpoint Kinds1327816
+Node: MIPS-Specific Protocol Details1328148
+Node: MIPS Register packet Format1328431
+Node: MIPS Breakpoint Kinds1329360
+Node: Tracepoint Packets1329779
+Ref: QTEnable1338772
+Ref: QTDisable1338968
+Ref: qTfSTM1344492
+Ref: qTsSTM1344492
+Ref: qTSTMat1345530
+Ref: QTBuffer-size1346677
+Node: Host I/O Packets1348647
+Node: Interrupts1353265
+Node: Notification Packets1355168
+Node: Remote Non-Stop1360545
+Node: Packet Acknowledgment1362834
+Node: Examples1364949
+Node: File-I/O Remote Protocol Extension1365575
+Node: File-I/O Overview1366037
+Node: Protocol Basics1368234
+Node: The F Request Packet1370466
+Node: The F Reply Packet1371367
+Node: The Ctrl-C Message1372285
+Node: Console I/O1373914
+Node: List of Supported Calls1375131
+Node: open1375493
+Node: close1377987
+Node: read1378369
+Node: write1378976
+Node: lseek1379743
+Node: rename1380621
+Node: unlink1382017
+Node: stat/fstat1382956
+Node: gettimeofday1383843
+Node: isatty1384278
+Node: system1384874
+Node: Protocol-specific Representation of Datatypes1386416
+Node: Integral Datatypes1386793
+Node: Pointer Values1387600
+Node: Memory Transfer1388308
+Node: struct stat1388928
+Node: struct timeval1391130
+Node: Constants1391647
+Node: Open Flags1392096
+Node: mode_t Values1392437
+Node: Errno Values1392929
+Node: Lseek Flags1393740
+Node: Limits1393925
+Node: File-I/O Examples1394285
+Node: Library List Format1395401
+Node: Library List Format for SVR4 Targets1398184
+Node: Memory Map Format1400654
+Node: Thread List Format1403231
+Node: Traceframe Info Format1404049
+Node: Branch Trace Format1405534
+Node: Agent Expressions1406880
+Node: General Bytecode Design1409701
+Node: Bytecode Descriptions1414501
+Node: Using Agent Expressions1427937
+Node: Varying Target Capabilities1429915
+Node: Rationale1431077
+Node: Target Descriptions1438463
+Node: Retrieving Descriptions1440339
+Node: Target Description Format1441424
+Node: Predefined Target Types1450473
+Node: Standard Target Features1451858
+Node: AArch64 Features1453669
+Node: ARM Features1454092
+Node: i386 Features1455609
+Node: MIPS Features1456713
+Node: M68K Features1457897
+Node: PowerPC Features1458560
+Node: TIC6x Features1459867
+Node: Operating System Information1460416
+Node: Process list1461254
+Node: Trace File Format1462316
+Node: Index Section Format1464310
+Node: Copying1472288
+Node: GNU Free Documentation License1509878
+Node: Concept Index1535044
+Node: Command and Variable Index1654694
+
+End Tag Table
