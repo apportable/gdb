@@ -88,7 +88,9 @@
 # include "linux-btrace.h"
 #endif
 
-#ifndef HAVE_ELF32_AUXV_T
+/* HAVE_ELF32_AUXV_T and HAVE_ELF64_AUXV_T in config.h are autogen'ed on the
+   host, and Android doesn't have those so we need to add another check here. */
+#if defined(__ANDROID__) || !defined(HAVE_ELF32_AUXV_T)
 /* Copied from glibc's elf.h.  */
 typedef struct
 {
@@ -103,7 +105,7 @@ typedef struct
 } Elf32_auxv_t;
 #endif
 
-#ifndef HAVE_ELF64_AUXV_T
+#if defined(__ANDROID__) || !defined(HAVE_ELF64_AUXV_T)
 /* Copied from glibc's elf.h.  */
 typedef struct
 {
