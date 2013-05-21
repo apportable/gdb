@@ -1273,7 +1273,11 @@ svr4_current_sos (void)
 	  info->main_lm_addr = library_list.main_lm;
 	}
 
-      return library_list.head ? library_list.head : svr4_default_sos ();
+      if (exec_bfd && bfd_get_section_by_name (exec_bfd, ".dynamic") == NULL)
+	return library_list.head ? library_list.head : svr4_default_sos ();
+      else
+	return library_list.head && library_list.head->next ?
+	    library_list.head->next : svr4_default_sos ();
     }
 
   info = get_svr4_info ();
