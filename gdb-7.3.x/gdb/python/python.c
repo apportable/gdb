@@ -48,7 +48,7 @@ static char pyver_string[]=
 #elif defined(HAVE_LIBPYTHON2_6)
   "2.6";
 #elif defined(HAVE_LIBPYTHON2_7)
-  "2.7.4";
+  "2.7.5";
 #endif
 
 /* Android NDK-isms. Used to aid finding
@@ -1041,8 +1041,8 @@ size_t add_clue(size_t n_so_far, char** clues, char* new_clue)
     and Python.
    For my latest release, I've ended up with a layout that I don't think I'm
     going to go with long-term:
-    Python has a prefix of toolchains/prebuilt/linux-x86/python-2.7.4
-    but I'm thinking of dropping the final python-2.7.4 folder.
+    Python has a prefix of toolchains/prebuilt/linux-x86/python-2.7.5
+    but I'm thinking of dropping the final python-2.7.5 folder.
     See notes [1] and [2] below for more details.
 */
 void find_python_executable_and_pythonhome(char** python_executable,
