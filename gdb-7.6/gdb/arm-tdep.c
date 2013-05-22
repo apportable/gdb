@@ -10617,7 +10617,9 @@ vfp - VFP co-processor."),
 struct arm_mem_r
 {
   uint32_t len;    /* Record length.  */
-  CORE_ADDR addr;  /* Memory address.  */
+  /* FIXME - CORE_ADDR is 64-bit on the host
+   * http://sourceware.org/bugzilla/show_bug.cgi?id=15518 */
+  uint32_t addr;   /* Memory address.  */
 };
 
 /* ARM instruction record contains opcode of current insn
