@@ -1522,7 +1522,7 @@ static void gnu_runtime_ivar_offsets(struct type *t, CORE_ADDR isa, enum bfd_end
 {
   struct type *a;  /* ancestors */
   for (a = t; /* ancestors */
-       strcmp(a->main_type->tag_name, "NSObject") != 0;
+       a->main_type->tag_name && strcmp(a->main_type->tag_name, "NSObject") != 0;
        a = TYPE_FIELD_TYPE(a, 0)) {
     a->did_ivar_offsets = 1;
 
@@ -1583,7 +1583,7 @@ static void apple_runtime_ivar_offsets(struct type *t, CORE_ADDR isa, enum bfd_e
 {
   struct type *a;  /* ancestors */
   for (a = t;
-       strcmp(a->main_type->tag_name, "NSObject") != 0;
+       a->main_type->tag_name && strcmp(a->main_type->tag_name, "NSObject") != 0;
        a = TYPE_FIELD_TYPE(a, 0)) {
     const char *class_name = a->main_type->tag_name;
     int i;
