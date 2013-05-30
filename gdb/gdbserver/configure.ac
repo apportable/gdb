@@ -24,6 +24,16 @@ AC_INIT(server.c)
 AC_CONFIG_HEADER(config.h:config.in)
 AC_CONFIG_LIBOBJ_DIR(../gnulib)
 
+AM_MAINTAINER_MODE
+
+AC_ARG_WITH([sysroot],
+  [AS_HELP_STRING([--with-sysroot=SYSROOT],
+                  [use sysroot as the system root during the build])],
+  [if test x"$withval" != x ; then
+     CFLAGS="$CFLAGS --sysroot=$withval"
+   fi],
+  [])
+
 AC_PROG_CC
 AC_GNU_SOURCE
 
@@ -268,11 +278,30 @@ if test "$ac_cv_header_sys_procfs_h" = yes; then
   BFD_HAVE_SYS_PROCFS_TYPE(elf_fpregset_t)
 fi
 
-dnl Check for libdl, but do not add it to LIBS as only gdbserver
-dnl needs it (and gdbreplay doesn't).
-old_LIBS="$LIBS"
-AC_CHECK_LIB(dl, dlopen)
-LIBS="$old_LIBS"
+dnl Some systems (e.g., Android) have lwpid_t defined in libthread_db.h.
+if test "$bfd_cv_have_sys_procfs_type_lwpid_t" != yes; then
+  GDBSERVER_HAVE_THREAD_DB_TYPE(lwpid_t)
+fi
+
+dnl Some systems (e.g., Android) have psaddr_t defined in libthread_db.h.
+if test "$bfd_cv_have_sys_procfs_type_psaddr_t" != yes; then
+  GDBSERVER_HAVE_THREAD_DB_TYPE(psaddr_t)
+fi
+
+case "$target" in
+*android*)
+    srv_android_thread_db="yes"
+    thread_db_inc="-I$srcdir/../../android -fno-short-enums"
+    ;;
+*)
+    dnl Check for libdl, but do not add it to LIBS as only gdbserver
+    dnl needs it (and gdbreplay doesn't).
+    old_LIBS="$LIBS"
+    AC_CHECK_LIB(dl, dlopen)
+    LIBS="$old_LIBS"
+    ;;
+esac
+AC_SUBST(thread_db_inc)
 
 srv_thread_depfiles=
 srv_libs=
@@ -299,11 +328,15 @@ if test "$srv_linux_thread_db" = "yes"; then
     AC_SUBST(RDYNAMIC)
     LDFLAGS="$old_LDFLAGS"
     AC_MSG_RESULT($found)
-  else
+  elif test "$srv_android_thread_db" != "yes"; then
     srv_libs="-lthread_db"
   fi
 
   srv_thread_depfiles="thread-db.o proc-service.o"
+  if test "$srv_android_thread_db" = "yes"; then
+    srv_thread_depfiles="$srv_thread_depfiles libthread_db.o"
+  fi
+
   USE_THREAD_DB="-DUSE_THREAD_DB"
   AC_CACHE_CHECK([for TD_VERSION], gdbsrv_cv_have_td_version,
   [AC_TRY_COMPILE([#include <thread_db.h>], [TD_VERSION;],
@@ -320,7 +353,7 @@ AS_HELP_STRING([--with-libthread-db=PATH], [use given libthread_db directly]),
   srv_libs="$srv_libthread_db_path"
 ])
 
-if test "$srv_libs" != "" -a "$srv_libs" != "-ldl"; then
+if test "$srv_libs" != "" -a "$srv_libs" != "-ldl" -o "$srv_android_thread_db" = "yes"; then
   AC_DEFINE(USE_LIBTHREAD_DB_DIRECTLY, 1, [Define if we should use libthread_db directly.])
 fi
 

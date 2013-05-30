@@ -384,7 +384,12 @@ handle_extended_wait (struct lwp_info *event_child, int wstat)
 	  else if (ret != new_pid)
 	    warning ("wait returned unexpected PID %d", ret);
 	  else if (!WIFSTOPPED (status))
-	    warning ("wait returned unexpected status 0x%x", status);
+	    {
+		  /* new thread exited?! better not do anything more */
+		  warning ("wait returned unexpected status 0x%x", status);
+		  linux_resume_one_lwp (event_child, event_child->stepping, 0, NULL);
+		  return;
+	    }
 	}
 
       linux_enable_event_reporting (new_pid);
@@ -5312,7 +5317,9 @@ linux_qxfer_libraries_svr4 (const char *annex, unsigned char *readbuf,
       int r_version, header_done = 0;
 
       document = xmalloc (allocated);
-      strcpy (document, "<library-list-svr4 version=\"1.0\"");
+      sprintf (document,
+        "<library-list-svr4 version=\"1.0\" debug-base=\"0x%lx\"",
+        (unsigned long) priv->r_debug);
       p = document + strlen (document);
 
       r_version = 0;
@@ -5359,7 +5366,8 @@ linux_qxfer_libraries_svr4 (const char *annex, unsigned char *readbuf,
 	  libname[0] = '\0';
 	  linux_read_memory (l_name, libname, sizeof (libname) - 1);
 	  libname[sizeof (libname) - 1] = '\0';
-	  if (libname[0] != '\0')
+	  /* Always include the first entry, i.e. the main executable */
+	  if (libname[0] != '\0' || lm_prev == 0)
 	    {
 	      /* 6x the size for xml_escape_text below.  */
 	      size_t len = 6 * strlen ((char *) libname);
@@ -5388,11 +5396,6 @@ linux_qxfer_libraries_svr4 (const char *annex, unsigned char *readbuf,
 			    name, (unsigned long) lm_addr,
 			    (unsigned long) l_addr, (unsigned long) l_ld);
 	      free (name);
-	    }
-	  else if (lm_prev == 0)
-	    {
-	      sprintf (p, " main-lm=\"0x%lx\"", (unsigned long) lm_addr);
-	      p = p + strlen (p);
 	    }
 
 	  if (l_next == 0)
