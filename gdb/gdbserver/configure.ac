@@ -22,7 +22,6 @@ AC_PREREQ(2.59)dnl
 
 AC_INIT(server.c)
 AC_CONFIG_HEADER(config.h:config.in)
-AC_CONFIG_LIBOBJ_DIR(../gnulib)
 
 AM_MAINTAINER_MODE
 
@@ -40,6 +39,7 @@ AC_GNU_SOURCE
 AC_CANONICAL_SYSTEM
 
 AC_PROG_INSTALL
+AC_PROG_RANLIB
 
 AC_ARG_PROGRAM
 
@@ -47,14 +47,25 @@ AC_HEADER_STDC
 AC_HEADER_DIRENT
 
 AC_FUNC_ALLOCA
+
+# Check for the 'make' the user wants to use.
+AC_CHECK_PROGS(MAKE, make)
+
+# Configure gnulib.  We can't use AC_CONFIG_SUBDIRS as that'd expect
+# to find the the source subdir to be configured directly under
+# gdbserver/.  We need to build gnulib under some other directory not
+# "gnulib", to avoid the problem of both GDB and GDBserver wanting to
+# build it in the same directory, when building in the source dir.
+ACX_CONFIGURE_DIR(["../gnulib"], ["build-gnulib-gdbserver"])
+
 AC_CHECK_HEADERS(sgtty.h termio.h termios.h sys/reg.h string.h dnl
 		 proc_service.h sys/procfs.h thread_db.h linux/elf.h dnl
 		 stdlib.h unistd.h dnl
 		 errno.h fcntl.h signal.h sys/file.h malloc.h dnl
 		 sys/ioctl.h netinet/in.h sys/socket.h netdb.h dnl
-		 netinet/tcp.h arpa/inet.h sys/wait.h)
-AC_CHECK_FUNCS(pread pwrite pread64)
-AC_REPLACE_FUNCS(memmem vasprintf vsnprintf)
+		 netinet/tcp.h arpa/inet.h sys/wait.h sys/un.h)
+AC_CHECK_FUNCS(pread pwrite pread64 readlink)
+AC_REPLACE_FUNCS(vasprintf vsnprintf)
 
 # Check for UST
 ustlibs=""
@@ -171,12 +182,16 @@ AC_TRY_LINK([
   [AC_MSG_RESULT(no)])
 fi
 
-AC_CHECK_DECLS([strerror, perror, memmem, vasprintf, vsnprintf])
+AC_CHECK_DECLS([strerror, perror, vasprintf, vsnprintf])
 
 AC_CHECK_TYPES(socklen_t, [], [],
 [#include <sys/types.h>
 #include <sys/socket.h>
 ])
+
+AC_CHECK_TYPES([Elf32_auxv_t, Elf64_auxv_t], [], [],
+#include <elf.h>
+)
 
 ACX_PKGVERSION([GDB])
 ACX_BUGURL([http://www.gnu.org/software/gdb/bugs/])
@@ -451,6 +466,14 @@ AC_SUBST(srv_xmlbuiltin)
 AC_SUBST(srv_xmlfiles)
 AC_SUBST(IPA_DEPFILES)
 AC_SUBST(extra_libraries)
+
+GNULIB=build-gnulib-gdbserver/import
+
+GNULIB_STDINT_H=
+if test x"$STDINT_H" != x; then
+  GNULIB_STDINT_H=$GNULIB/$STDINT_H
+fi
+AC_SUBST(GNULIB_STDINT_H)
 
 AC_OUTPUT(Makefile,
 [case x$CONFIG_HEADERS in

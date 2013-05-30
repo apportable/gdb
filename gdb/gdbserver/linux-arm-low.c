@@ -432,8 +432,9 @@ arm_linux_hw_breakpoint_equal (const struct arm_linux_hw_breakpoint *p1,
 
 /* Initialize the hardware breakpoint structure P for a breakpoint or
    watchpoint at ADDR to LEN.  The type of watchpoint is given in TYPE.
-   Returns -1 if TYPE is unsupported, 0 if TYPE represents a breakpoint,
-   and 1 if type represents a watchpoint.  */
+   Returns -1 if TYPE is unsupported, or -2 if the particular combination
+   of ADDR and LEN cannot be implemented.  Otherwise, returns 0 if TYPE
+   represents a breakpoint and 1 if type represents a watchpoint.  */
 static int
 arm_linux_hw_point_initialize (char type, CORE_ADDR addr, int len,
 			       struct arm_linux_hw_breakpoint *p)
@@ -474,17 +475,17 @@ arm_linux_hw_point_initialize (char type, CORE_ADDR addr, int len,
 	{
 	case 2:	 /* 16-bit Thumb mode breakpoint */
 	case 3:  /* 32-bit Thumb mode breakpoint */
-	  mask = 0x3 << (addr & 2);
+	  mask = 0x3;
+	  addr &= ~1;
 	  break;
 	case 4:  /* 32-bit ARM mode breakpoint */
 	  mask = 0xf;
+	  addr &= ~3;
 	  break;
 	default:
 	  /* Unsupported. */
-	  return -1;
+	  return -2;
 	}
-
-      addr &= ~3;
     }
   else
     {
@@ -493,17 +494,17 @@ arm_linux_hw_point_initialize (char type, CORE_ADDR addr, int len,
 
       /* Can not set watchpoints for zero or negative lengths.  */
       if (len <= 0)
-	return -1;
+	return -2;
       /* The current ptrace interface can only handle watchpoints that are a
 	 power of 2.  */
       if ((len & (len - 1)) != 0)
-	return -1;
+	return -2;
 
       /* Test that the range [ADDR, ADDR + LEN) fits into the largest address
 	 range covered by a watchpoint.  */
       aligned_addr = addr & ~(max_wp_length - 1);
       if (aligned_addr + max_wp_length < addr + len)
-	return -1;
+	return -2;
 
       mask = (1 << len) - 1;
     }
@@ -560,7 +561,7 @@ arm_insert_point (char type, CORE_ADDR addr, int len)
   if (watch < 0)
     {
       /* Unsupported.  */
-      return 1;
+      return watch == -1 ? 1 : -1;
     }
 
   if (watch)
@@ -631,7 +632,7 @@ static int
 arm_stopped_by_watchpoint (void)
 {
   struct lwp_info *lwp = get_thread_lwp (current_inferior);
-  struct siginfo siginfo;
+  siginfo_t siginfo;
 
   /* We must be able to set hardware watchpoints.  */
   if (arm_linux_get_hw_watchpoint_count () == 0)
@@ -709,23 +710,15 @@ arm_prepare_to_resume (struct lwp_info *lwp)
 	errno = 0;
 
 	if (arm_hwbp_control_is_enabled (proc_info->bpts[i].control))
-#ifdef __ANDROID__
-    if (ptrace (PTRACE_SETHBPREGS, pid, (void *)((i << 1) + 1),
-        &proc_info->bpts[i].address) < 0)
-#else
-    if (ptrace (PTRACE_SETHBPREGS, pid, ((i << 1) + 1),
-	      &proc_info->bpts[i].address) < 0)
-#endif
+	  if (ptrace (PTRACE_SETHBPREGS, pid,
+		      (PTRACE_ARG3_TYPE) ((i << 1) + 1),
+		      &proc_info->bpts[i].address) < 0)
 	    perror_with_name ("Unexpected error setting breakpoint address");
 
 	if (arm_hwbp_control_is_initialized (proc_info->bpts[i].control))
-#ifdef __ANDROID__
-    if (ptrace (PTRACE_SETHBPREGS, pid, (void *)((i << 1) + 2),
-        &proc_info->bpts[i].control) < 0)
-#else
-    if (ptrace (PTRACE_SETHBPREGS, pid, ((i << 1) + 2),
-	      &proc_info->bpts[i].control) < 0)
-#endif
+	  if (ptrace (PTRACE_SETHBPREGS, pid,
+		      (PTRACE_ARG3_TYPE) ((i << 1) + 2),
+		      &proc_info->bpts[i].control) < 0)
 	    perror_with_name ("Unexpected error setting breakpoint");
 
 	lwp_info->bpts_changed[i] = 0;
@@ -737,23 +730,15 @@ arm_prepare_to_resume (struct lwp_info *lwp)
 	errno = 0;
 
 	if (arm_hwbp_control_is_enabled (proc_info->wpts[i].control))
-#ifdef __ANDROID__
-    if (ptrace (PTRACE_SETHBPREGS, pid, (void *)(-((i << 1) + 1)),
-        &proc_info->wpts[i].address) < 0)
-#else
-    if (ptrace (PTRACE_SETHBPREGS, pid, -((i << 1) + 1),
-	      &proc_info->wpts[i].address) < 0)
-#endif
+	  if (ptrace (PTRACE_SETHBPREGS, pid,
+		      (PTRACE_ARG3_TYPE) -((i << 1) + 1),
+		      &proc_info->wpts[i].address) < 0)
 	    perror_with_name ("Unexpected error setting watchpoint address");
 
 	if (arm_hwbp_control_is_initialized (proc_info->wpts[i].control))
-#ifdef __ANDROID__
-    if (ptrace (PTRACE_SETHBPREGS, pid, (void *)(-((i << 1) + 2)),
-        &proc_info->wpts[i].control) < 0)
-#else
-    if (ptrace (PTRACE_SETHBPREGS, pid, -((i << 1) + 2),
-	      &proc_info->wpts[i].control) < 0)
-#endif
+	  if (ptrace (PTRACE_SETHBPREGS, pid,
+		      (PTRACE_ARG3_TYPE) -((i << 1) + 2),
+		      &proc_info->wpts[i].control) < 0)
 	    perror_with_name ("Unexpected error setting watchpoint");
 
 	lwp_info->wpts_changed[i] = 0;
@@ -854,8 +839,10 @@ struct linux_target_ops the_low_target = {
   arm_arch_setup,
   arm_num_regs,
   arm_regmap,
+  NULL,
   arm_cannot_fetch_register,
   arm_cannot_store_register,
+  NULL, /* fetch_register */
   arm_get_pc,
   arm_set_pc,
 

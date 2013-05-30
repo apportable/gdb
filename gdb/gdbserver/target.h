@@ -394,6 +394,9 @@ struct target_ops
   int (*qxfer_libraries_svr4) (const char *annex, unsigned char *readbuf,
 			       unsigned const char *writebuf,
 			       CORE_ADDR offset, int len);
+
+  /* Return true if target supports debugging agent.  */
+  int (*supports_agent) (void);
 };
 
 extern struct target_ops *the_target;
@@ -514,6 +517,10 @@ void set_target_ops (struct target_ops *);
   (the_target->supports_disable_randomization ? \
    (*the_target->supports_disable_randomization) () : 0)
 
+#define target_supports_agent() \
+  (the_target->supports_agent ? \
+   (*the_target->supports_agent) () : 0)
+
 /* Start non-stop mode, returns 0 on success, -1 on failure.   */
 
 int start_non_stop (int nonstop);
@@ -532,6 +539,10 @@ ptid_t mywait (ptid_t ptid, struct target_waitstatus *ourstatus, int options,
       if (the_target->done_accessing_memory)     	\
 	(*the_target->done_accessing_memory) ();  	\
     } while (0)
+
+#define target_core_of_thread(ptid)		\
+  (the_target->core_of_thread ? (*the_target->core_of_thread) (ptid) \
+   : -1)
 
 int read_inferior_memory (CORE_ADDR memaddr, unsigned char *myaddr, int len);
 

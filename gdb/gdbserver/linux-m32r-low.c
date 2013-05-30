@@ -91,8 +91,10 @@ struct linux_target_ops the_low_target = {
   init_registers_m32r,
   m32r_num_regs,
   m32r_regmap,
+  NULL,
   m32r_cannot_fetch_register,
   m32r_cannot_store_register,
+  NULL, /* fetch_register */
   m32r_get_pc,
   m32r_set_pc,
   (const unsigned char *) &m32r_breakpoint,

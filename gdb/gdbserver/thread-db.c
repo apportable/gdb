@@ -654,11 +654,7 @@ dladdr_to_soname (const void *addr)
 {
   Dl_info info;
 
-#ifdef __ANDROID__
-  if (dladdr ((void *)addr, &info) != 0)
-#else
   if (dladdr (addr, &info) != 0)
-#endif
     return info.dli_fname;
   return NULL;
 }

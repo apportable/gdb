@@ -18,6 +18,8 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "server.h"
+#include "gdbthread.h"
+#include "agent.h"
 
 #if HAVE_UNISTD_H
 #include <unistd.h>
@@ -29,7 +31,19 @@
 #include <sys/wait.h>
 #endif
 
+/* The thread set with an `Hc' packet.  `Hc' is deprecated in favor of
+   `vCont'.  Note the multi-process extensions made `vCont' a
+   requirement, so `Hc pPID.TID' is pretty much undefined.  So
+   CONT_THREAD can be null_ptid for no `Hc' thread, minus_one_ptid for
+   resuming all threads of the process (again, `Hc' isn't used for
+   multi-process), or a specific thread ptid_t.
+
+   We also set this when handling a single-thread `vCont' resume, as
+   some places in the backends check it to know when (and for which
+   thread) single-thread scheduler-locking is in effect.  */
 ptid_t cont_thread;
+
+/* The thread set with an `Hg' packet.  */
 ptid_t general_thread;
 
 int server_waiting;
@@ -58,6 +72,8 @@ int debug_threads;
 int debug_hw_points;
 
 int pass_signals[GDB_SIGNAL_LAST];
+int program_signals[GDB_SIGNAL_LAST];
+int program_signals_p;
 
 jmp_buf toplevel;
 
@@ -261,6 +277,10 @@ start_inferior (char **argv)
   signal (SIGTTIN, SIG_DFL);
 #endif
 
+  /* Clear this so the backend doesn't get confused, thinking
+     CONT_THREAD died, and it needs to resume all threads.  */
+  cont_thread = null_ptid;
+
   signal_pid = create_inferior (new_argv[0], new_argv);
 
   /* FIXME: we don't actually know at this point that the create
@@ -288,7 +308,7 @@ start_inferior (char **argv)
       resume_info.kind = resume_continue;
       resume_info.sig = 0;
 
-      mywait (pid_to_ptid (signal_pid), &last_status, 0, 0);
+      last_ptid = mywait (pid_to_ptid (signal_pid), &last_status, 0, 0);
 
       if (last_status.kind != TARGET_WAITKIND_STOPPED)
 	return signal_pid;
@@ -297,7 +317,7 @@ start_inferior (char **argv)
 	{
 	  (*the_target->resume) (&resume_info, 1);
 
- 	  mywait (pid_to_ptid (signal_pid), &last_status, 0, 0);
+ 	  last_ptid = mywait (pid_to_ptid (signal_pid), &last_status, 0, 0);
 	  if (last_status.kind != TARGET_WAITKIND_STOPPED)
 	    return signal_pid;
 
@@ -306,8 +326,6 @@ start_inferior (char **argv)
 	}
       while (last_status.value.sig != GDB_SIGNAL_TRAP);
 
-      current_inferior->last_resume_kind = resume_stop;
-      current_inferior->last_status = last_status;
       return signal_pid;
     }
 
@@ -341,6 +359,10 @@ attach_inferior (int pid)
      attach function, so that it can be the main thread instead of
      whichever we were told to attach to.  */
   signal_pid = pid;
+
+  /* Clear this so the backend doesn't get confused, thinking
+     CONT_THREAD died, and it needs to resume all threads.  */
+  cont_thread = null_ptid;
 
   if (!non_stop)
     {
@@ -454,6 +476,33 @@ handle_general_set (char *own_buf)
       return;
     }
 
+  if (strncmp ("QProgramSignals:", own_buf, strlen ("QProgramSignals:")) == 0)
+    {
+      int numsigs = (int) GDB_SIGNAL_LAST, i;
+      const char *p = own_buf + strlen ("QProgramSignals:");
+      CORE_ADDR cursig;
+
+      program_signals_p = 1;
+
+      p = decode_address_to_semicolon (&cursig, p);
+      for (i = 0; i < numsigs; i++)
+	{
+	  if (i == cursig)
+	    {
+	      program_signals[i] = 1;
+	      if (*p == '\0')
+		/* Keep looping, to clear the remaining signals.  */
+		cursig = -1;
+	      else
+		p = decode_address_to_semicolon (&cursig, p);
+	    }
+	  else
+	    program_signals[i] = 0;
+	}
+      strcpy (own_buf, "OK");
+      return;
+    }
+
   if (strcmp (own_buf, "QStartNoAckMode") == 0)
     {
       if (remote_debug)
@@ -528,6 +577,30 @@ handle_general_set (char *own_buf)
   if (target_supports_tracepoints ()
       && handle_tracepoint_general_set (own_buf))
     return;
+
+  if (strncmp ("QAgent:", own_buf, strlen ("QAgent:")) == 0)
+    {
+      char *mode = own_buf + strlen ("QAgent:");
+      int req = 0;
+
+      if (strcmp (mode, "0") == 0)
+	req = 0;
+      else if (strcmp (mode, "1") == 0)
+	req = 1;
+      else
+	{
+	  /* We don't know what this value is, so complain to GDB.  */
+	  sprintf (own_buf, "E.Unknown QAgent value");
+	  return;
+	}
+
+      /* Update the flag.  */
+      use_agent = req;
+      if (remote_debug)
+	fprintf (stderr, "[%s agent]\n", req ? "Enable" : "Disable");
+      write_ok (own_buf);
+      return;
+    }
 
   /* Otherwise we didn't know what packet it was.  Say we didn't
      understand it.  */
@@ -811,7 +884,7 @@ handle_search_memory (char *own_buf, int packet_len)
 /* Handle monitor commands not handled by target-specific handlers.  */
 
 static void
-handle_monitor_command (char *mon)
+handle_monitor_command (char *mon, char *own_buf)
 {
   if (strcmp (mon, "set debug 1") == 0)
     {
@@ -944,10 +1017,6 @@ handle_qxfer_libraries (const char *annex,
 
   if (annex[0] != '\0' || !target_running ())
     return -1;
-
-  /* Do not confuse this packet with qXfer:libraries-svr4:read.  */
-  if (the_target->qxfer_libraries_svr4 != NULL)
-    return 0;
 
   /* Over-estimate the necessary memory.  Assume that every character
      in the library name must be escaped.  */
@@ -1095,13 +1164,10 @@ handle_qxfer_threads_proper (struct buffer *buffer)
     {
       ptid_t ptid = thread_to_gdb_id ((struct thread_info *)thread);
       char ptid_s[100];
-      int core = -1;
+      int core = target_core_of_thread (ptid);
       char core_s[21];
 
       write_ptid (ptid_s, ptid);
-
-      if (the_target->core_of_thread)
-	core = (*the_target->core_of_thread) (ptid);
 
       if (core != -1)
 	{
@@ -1559,7 +1625,9 @@ handle_query (char *own_buf, int packet_len, int *new_packet_len_p)
 	  free (qsupported);
 	}
 
-      sprintf (own_buf, "PacketSize=%x;QPassSignals+", PBUFSIZ - 1);
+      sprintf (own_buf,
+	       "PacketSize=%x;QPassSignals+;QProgramSignals+",
+	       PBUFSIZ - 1);
 
       if (the_target->qxfer_libraries_svr4 != NULL)
 	strcat (own_buf, ";qXfer:libraries-svr4:read+");
@@ -1620,6 +1688,13 @@ handle_query (char *own_buf, int packet_len, int *new_packet_len_p)
 	  strcat (own_buf, ";EnableDisableTracepoints+");
 	  strcat (own_buf, ";tracenz+");
 	}
+
+      /* Support target-side breakpoint conditions and commands.  */
+      strcat (own_buf, ";ConditionalBreakpoints+");
+      strcat (own_buf, ";BreakpointCommands+");
+
+      if (target_supports_agent ())
+	strcat (own_buf, ";QAgent+");
 
       return;
     }
@@ -1737,7 +1812,7 @@ handle_query (char *own_buf, int packet_len, int *new_packet_len_p)
       if (the_target->handle_monitor_command == NULL
 	  || (*the_target->handle_monitor_command) (mon) == 0)
 	/* Default processing.  */
-	handle_monitor_command (mon);
+	handle_monitor_command (mon, own_buf);
 
       free (mon);
       return;
@@ -1900,9 +1975,13 @@ handle_v_cont (char *own_buf)
   if (i < n)
     resume_info[i] = default_action;
 
-  /* Still used in occasional places in the backend.  */
+  /* `cont_thread' is still used in occasional places in the backend,
+     to implement single-thread scheduler-locking.  Doesn't make sense
+     to set it if we see a stop request, or a wildcard action (one
+     with '-1' (all threads), or 'pPID.-1' (all threads of PID)).  */
   if (n == 1
-      && !ptid_equal (resume_info[0].thread, minus_one_ptid)
+      && !(ptid_equal (resume_info[0].thread, minus_one_ptid)
+	   || ptid_get_lwp (resume_info[0].thread) == -1)
       && resume_info[0].kind != resume_stop)
     cont_thread = resume_info[0].thread;
   else
@@ -2144,7 +2223,7 @@ handle_v_requests (char *own_buf, int packet_len, int *new_packet_len)
 
   if (strncmp (own_buf, "vAttach;", 8) == 0)
     {
-      if (!multi_process && target_running ())
+      if ((!extended_protocol || !multi_process) && target_running ())
 	{
 	  fprintf (stderr, "Already debugging a process\n");
 	  write_enn (own_buf);
@@ -2156,7 +2235,7 @@ handle_v_requests (char *own_buf, int packet_len, int *new_packet_len)
 
   if (strncmp (own_buf, "vRun;", 5) == 0)
     {
-      if (!multi_process && target_running ())
+      if ((!extended_protocol || !multi_process) && target_running ())
 	{
 	  fprintf (stderr, "Already debugging a process\n");
 	  write_enn (own_buf);
@@ -2528,8 +2607,8 @@ main (int argc, char *argv[])
   int pid;
   char *arg_end, *port;
   char **next_arg = &argv[1];
-  int multi_mode = 0;
-  int attach = 0;
+  volatile int multi_mode = 0;
+  volatile int attach = 0;
   int was_running;
 
   while (*next_arg != NULL && **next_arg == '-')
@@ -2609,6 +2688,13 @@ main (int argc, char *argv[])
 		}
 	    }
 	}
+      else if (strcmp (*next_arg, "-") == 0)
+	{
+	  /* "-" specifies a stdio connection and is a form of port
+	     specification.  */
+	  *next_arg = STDIO_CONNECTION_NAME;
+	  break;
+	}
       else if (strcmp (*next_arg, "--disable-randomization") == 0)
 	disable_randomization = 1;
       else if (strcmp (*next_arg, "--no-disable-randomization") == 0)
@@ -2638,6 +2724,12 @@ main (int argc, char *argv[])
       gdbserver_usage (stderr);
       exit (1);
     }
+
+  /* We need to know whether the remote connection is stdio before
+     starting the inferior.  Inferiors created in this scenario have
+     stdin,stdout redirected.  So do this here before we call
+     start_inferior.  */
+  remote_prepare (port);
 
   bad_attach = 0;
   pid = 0;
@@ -2710,7 +2802,14 @@ main (int argc, char *argv[])
 
   if (setjmp (toplevel))
     {
-      detach_or_kill_for_exit ();
+      /* If something fails and longjmps while detaching or killing
+	 inferiors, we'd end up here again, stuck in an infinite loop
+	 trap.  Be sure that if that happens, we exit immediately
+	 instead.  */
+      if (setjmp (toplevel) == 0)
+	detach_or_kill_for_exit ();
+      else
+	fprintf (stderr, "Detach or kill failed.  Exiting\n");
       exit (1);
     }
 
@@ -2725,8 +2824,6 @@ main (int argc, char *argv[])
       fprintf (stderr, "No program to debug.  GDBserver exiting.\n");
       exit (1);
     }
-
-  remote_prepare (port);
 
   while (1)
     {
@@ -2758,8 +2855,20 @@ main (int argc, char *argv[])
 
       if (exit_requested || run_once)
 	{
-	  detach_or_kill_for_exit ();
-	  exit (0);
+	  /* If something fails and longjmps while detaching or
+	     killing inferiors, we'd end up here again, stuck in an
+	     infinite loop trap.  Be sure that if that happens, we
+	     exit immediately instead.  */
+	  if (setjmp (toplevel) == 0)
+	    {
+	      detach_or_kill_for_exit ();
+	      exit (0);
+	    }
+	  else
+	    {
+	      fprintf (stderr, "Detach or kill failed.  Exiting\n");
+	      exit (1);
+	    }
 	}
 
       fprintf (stderr,
@@ -2793,6 +2902,56 @@ main (int argc, char *argv[])
 	    }
 	}
     }
+}
+
+/* Process options coming from Z packets for *point at address
+   POINT_ADDR.  PACKET is the packet buffer.  *PACKET is updated
+   to point to the first char after the last processed option.  */
+
+static void
+process_point_options (CORE_ADDR point_addr, char **packet)
+{
+  char *dataptr = *packet;
+  int persist;
+
+  /* Check if data has the correct format.  */
+  if (*dataptr != ';')
+    return;
+
+  dataptr++;
+
+  while (*dataptr)
+    {
+      if (*dataptr == ';')
+	++dataptr;
+
+      if (*dataptr == 'X')
+	{
+	  /* Conditional expression.  */
+	  fprintf (stderr, "Found breakpoint condition.\n");
+	  add_breakpoint_condition (point_addr, &dataptr);
+	}
+      else if (strncmp (dataptr, "cmds:", strlen ("cmds:")) == 0)
+	{
+	  dataptr += strlen ("cmds:");
+	  if (debug_threads)
+	    fprintf (stderr, "Found breakpoint commands %s.\n", dataptr);
+	  persist = (*dataptr == '1');
+	  dataptr += 2;
+	  add_breakpoint_commands (point_addr, &dataptr, persist);
+	}
+      else
+	{
+	  /* Unrecognized token, just skip it.  */
+	  fprintf (stderr, "Unknown token %c, ignoring.\n",
+		   *dataptr);
+	}
+
+      /* Skip tokens until we find one that we recognize.  */
+      while (*dataptr && *dataptr != 'X' && *dataptr != ';')
+	dataptr++;
+    }
+  *packet = dataptr;
 }
 
 /* Event loop callback that handles a serial event.  The first byte in
@@ -2855,7 +3014,7 @@ process_serial_event (void)
 	pid =
 	  ptid_get_pid (((struct inferior_list_entry *) current_inferior)->id);
 
-      if (tracing && disconnected_tracing)
+      if ((tracing && disconnected_tracing) || any_persistent_commands ())
 	{
 	  struct thread_resume resume_info;
 	  struct process_info *process = find_process_pid (pid);
@@ -2866,9 +3025,15 @@ process_serial_event (void)
 	      break;
 	    }
 
-	  fprintf (stderr,
-		   "Disconnected tracing in effect, "
-		   "leaving gdbserver attached to the process\n");
+	  if (tracing && disconnected_tracing)
+	    fprintf (stderr,
+		     "Disconnected tracing in effect, "
+		     "leaving gdbserver attached to the process\n");
+
+	  if (any_persistent_commands ())
+	    fprintf (stderr,
+		     "Persistent commands are present, "
+		     "leaving gdbserver attached to the process\n");
 
 	  /* Make sure we're in non-stop/async mode, so we we can both
 	     wait for an async socket accept, and handle async target
@@ -3117,7 +3282,22 @@ process_serial_event (void)
 	  case '4': /* access watchpoint */
 	    require_running (own_buf);
 	    if (insert && the_target->insert_point != NULL)
-	      res = (*the_target->insert_point) (type, addr, len);
+	      {
+		/* Insert the breakpoint.  If it is already inserted, nothing
+		   will take place.  */
+		res = (*the_target->insert_point) (type, addr, len);
+
+		/* GDB may have sent us a list of *point parameters to be
+		   evaluated on the target's side.  Read such list here.  If we
+		   already have a list of parameters, GDB is telling us to drop
+		   that list and use this one instead.  */
+		if (!res && (type == '0' || type == '1'))
+		  {
+		    /* Remove previous conditions.  */
+		    clear_gdb_breakpoint_conditions (addr);
+		    process_point_options (addr, &dataptr);
+		  }
+	      }
 	    else if (!insert && the_target->remove_point != NULL)
 	      res = (*the_target->remove_point) (type, addr, len);
 	    break;
