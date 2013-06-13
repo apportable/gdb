@@ -79,7 +79,8 @@ struct thread_db
 				   td_thrhandle_t *th);
   td_err_e (*td_thr_get_info_p) (const td_thrhandle_t *th,
 				 td_thrinfo_t *infop);
-  td_err_e (*td_thr_event_enable_p) (const td_thrhandle_t *th, int event);
+  td_err_e (*td_thr_event_enable_p) (const td_thrhandle_t *th,
+                                     td_event_e event);
   td_err_e (*td_ta_thr_iter_p) (const td_thragent_t *ta,
 				td_thr_iter_f *callback, void *cbdata_p,
 				td_thr_state_e state, int ti_pri,
