@@ -65,6 +65,16 @@
 #include <winsock2.h>
 #endif
 
+/* ANDROID BEGIN */
+/* Need to hack configure to include sys/socket.h by default during testing
+ * otherwise the test will fail because sa_family_t is undefined, hence the
+ * HAVE_SYS_UN_H macro.
+ */
+#ifdef HAVE_SYS_UN_H
+#include <sys/un.h>
+#endif
+/* ANDROID END */
+
 #if __QNX__
 #include <sys/iomgr.h>
 #endif /* __QNX__ */
@@ -289,6 +299,47 @@ remote_prepare (char *name)
 void
 remote_open (char *name)
 {
+/* ANDROID BEGIN */
+/* Special protocol used by NDK debugging */
+#ifdef HAVE_SYS_UN_H
+  if (name[0] == '+')
+    {
+#ifdef USE_WIN32API
+      error ("Only <host>:<port> is supported on this platform.");
+#else
+      struct sockaddr_un sockaddr;
+      socklen_t sockaddrlen;
+
+      name += 1; // skip the initial +
+
+      listen_desc = socket (AF_UNIX, SOCK_STREAM, 0);
+      if (listen_desc < 0)
+        perror_with_name ("Could not create Unix-domain socket");
+
+      memset (&sockaddr, 0, sizeof sockaddr);
+      sockaddr.sun_family = AF_UNIX;
+      strlcpy(sockaddr.sun_path, name, sizeof sockaddr.sun_path);
+
+      unlink (sockaddr.sun_path);
+      sockaddrlen = sizeof(sockaddr.sun_family) + strlen(sockaddr.sun_path) + 1;
+      if (bind (listen_desc, (struct sockaddr *)&sockaddr, sockaddrlen) < 0)
+        perror_with_name ("Could not bind to Unix-domain socket");
+      if (listen (listen_desc, 1) < 0)
+        perror_with_name ("Could not listen to Unix-domain socket");
+
+      fprintf (stderr, "Listening on Unix socket %s\n", sockaddr.sun_path);
+      fflush (stderr);
+
+      /* Register the event loop handler.  */
+      add_file_handler (listen_desc, handle_accept_event, NULL);
+
+      transport_is_reliable = 1;
+#endif
+    }
+  else
+#endif /* HAVE_SYS_UN_H */
+/* ANDROID END */
+  {
   char *port_str;
 
   port_str = strchr (name, ':');
@@ -398,6 +449,7 @@ remote_open (char *name)
       /* Register the event loop handler.  */
       add_file_handler (listen_desc, handle_accept_event, NULL);
     }
+  }
 }
 
 void
