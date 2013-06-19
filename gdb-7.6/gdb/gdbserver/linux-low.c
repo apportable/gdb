@@ -51,6 +51,14 @@
 #include <elf.h>
 #endif
 
+#if defined(HAVE_PREAD64) && defined(__ANDROID__)
+/* NDK doesn't expose pread64 but MIPS' libc.a somehow has it, which
+   passes the test in configure and define HAVE_PREAD64.  Problem is that
+   prototype is missing in header, and later -Werror cause compilation fail.
+   Since it make this far, adding a prototype doesn't hurt. */
+extern ssize_t pread64(int, void *, size_t, off64_t);
+#endif
+
 #ifndef SPUFS_MAGIC
 #define SPUFS_MAGIC 0x23c9b64e
 #endif

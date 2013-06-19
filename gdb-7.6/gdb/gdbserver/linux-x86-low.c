@@ -26,7 +26,17 @@
 #include "i387-fp.h"
 #include "i386-low.h"
 #include "i386-xstate.h"
+
+/* Don't include elf/common.h if linux/elf.h got included by gdb_proc_service.h.
+   On Bionic elf/common.h and linux/elf.h have conflicting definitions.
+   NT_X86_XSTATE is still required because not defined by linux/elf.h now.
+*/
+#ifdef ELFMAG0
+#define NT_X86_XSTATE 0x202 /* x86 XSAVE extended state */
+                            /*   note name must be "LINUX".  */
+#else
 #include "elf/common.h"
+#endif
 
 #include "gdb_proc_service.h"
 #include "agent.h"
@@ -63,8 +73,13 @@ static const char *xmltarget_amd64_linux_no_xml = "@<target>\
 </target>";
 #endif
 
+#ifdef HAVE_SYS_REG_H
 #include <sys/reg.h>
+#endif
+#ifdef HAVE_SYS_PROCFS_H
 #include <sys/procfs.h>
+#endif
+
 #include <sys/ptrace.h>
 #include <sys/uio.h>
 
@@ -193,7 +208,7 @@ ps_get_thread_area (const struct ps_prochandle *ph,
     unsigned int desc[4];
 
     if (ptrace (PTRACE_GET_THREAD_AREA, lwpid,
-		(void *) (intptr_t) idx, (unsigned long) &desc) < 0)
+		(void *) (intptr_t) idx, (PTRACE_ARG4_TYPE) &desc) < 0)
       return PS_ERR;
 
     *(int *)base = desc[1];
@@ -239,7 +254,7 @@ x86_get_thread_area (int lwpid, CORE_ADDR *addr)
 
     if (ptrace (PTRACE_GET_THREAD_AREA,
 		lwpid_of (lwp),
-		(void *) (long) idx, (unsigned long) &desc) < 0)
+		(void *) (long) idx, (PTRACE_ARG4_TYPE) &desc) < 0)
       return -1;
 
     *addr = desc[1];
@@ -447,7 +462,7 @@ x86_linux_dr_get (ptid_t ptid, int regnum)
 
   errno = 0;
   value = ptrace (PTRACE_PEEKUSER, tid,
-		  offsetof (struct user, u_debugreg[regnum]), 0);
+		  (PTRACE_ARG3_TYPE)offsetof (struct user, u_debugreg[regnum]), 0);
   if (errno != 0)
     error ("Couldn't read debug register");
 
@@ -463,7 +478,7 @@ x86_linux_dr_set (ptid_t ptid, int regnum, unsigned long value)
 
   errno = 0;
   ptrace (PTRACE_POKEUSER, tid,
-	  offsetof (struct user, u_debugreg[regnum]), value);
+	  (PTRACE_ARG3_TYPE)offsetof (struct user, u_debugreg[regnum]), (PTRACE_ARG4_TYPE)value);
   if (errno != 0)
     error ("Couldn't write debug register");
 }
@@ -1176,7 +1191,7 @@ x86_linux_update_xmltarget (void)
 	{
 	  elf_fpxregset_t fpxregs;
 
-	  if (ptrace (PTRACE_GETFPXREGS, pid, 0, (int) &fpxregs) < 0)
+	  if (ptrace (PTRACE_GETFPXREGS, pid, 0, (PTRACE_ARG4_TYPE) &fpxregs) < 0)
 	    {
 	      have_ptrace_getfpxregs = 0;
 	      x86_xcr0 = I386_XSTATE_X87_MASK;
@@ -1231,7 +1246,7 @@ x86_linux_update_xmltarget (void)
       iov.iov_len = sizeof (xstateregs);
 
       /* Check if PTRACE_GETREGSET works.  */
-      if (ptrace (PTRACE_GETREGSET, pid, (unsigned int) NT_X86_XSTATE,
+      if (ptrace (PTRACE_GETREGSET, pid, (PTRACE_ARG3_TYPE) NT_X86_XSTATE,
 		  &iov) < 0)
 	{
 	  have_ptrace_getregset = 0;
