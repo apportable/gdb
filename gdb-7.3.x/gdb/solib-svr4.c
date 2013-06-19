@@ -1444,7 +1444,7 @@ svr4_current_sos (void)
     {
       if (library_list.main_lm)
 	info->main_lm_addr = library_list.main_lm;
-      else if (!exec_bfd || bfd_get_section_by_name (exec_bfd, ".dynamic") != NULL)
+      else if ((!exec_bfd || bfd_get_section_by_name (exec_bfd, ".dynamic") != NULL) && library_list.head != NULL)
         {
           /* we should ignore the first item in the list, other than
              recording main_lm_addr */
