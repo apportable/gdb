@@ -1117,9 +1117,6 @@ print_gdb_version (struct ui_file *stream)
 
   fprintf_filtered (stream, "GNU gdb %s%s\n", PKGVERSION, version);
 
-  fprintf_filtered (stream,
-        "Apportable Edition\n");
-
   /* Second line is a copyright notice.  */
 
   fprintf_filtered (stream,
