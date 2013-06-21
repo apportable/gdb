@@ -4734,7 +4734,11 @@ thumb_get_next_pc_raw (struct frame_info *frame, CORE_ADDR pc)
   else if ((inst1 & 0xff00) == 0x4700)	/* bx REG, blx REG */
     {
       if (bits (inst1, 3, 6) == 0x0f)
-	nextpc = pc_val;
+        {
+          /* 'bx pc' and 'blx pc' will necessarily take us out of Thumb mode,
+             because the pc register's value can never be odd. */
+          nextpc = UNMAKE_THUMB_ADDR(pc_val);
+        }
       else
 	nextpc = get_frame_register_unsigned (frame, bits (inst1, 3, 6));
     }
