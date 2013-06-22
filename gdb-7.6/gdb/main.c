@@ -93,8 +93,13 @@ int return_child_result = 0;
 int return_child_result_value = -1;
 
 
+/* ANDROID CHANGE BEGIN
+ * Android gdb relies on peeking the full path of gdb to find out the location
+ * of prebuilt python.
+ */
 /* GDB as it has been invoked from the command line (i.e. argv[0]).  */
-static char *gdb_program_name;
+char *gdb_program_name;
+/* ANDROID CHANGE END */
 
 static void print_gdb_help (struct ui_file *);
 

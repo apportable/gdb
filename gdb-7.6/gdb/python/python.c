@@ -58,6 +58,37 @@ static const char *gdbpy_should_print_stack = python_excp_message;
 
 #ifdef HAVE_PYTHON
 
+/* ANDROID CHANGE BEGIN */
+static char pyver_string[]=
+#if defined(HAVE_LIBPYTHON2_4)
+  "2.4";
+#elif defined(HAVE_LIBPYTHON2_5)
+  "2.5";
+#elif defined(HAVE_LIBPYTHON2_6)
+  "2.6";
+#elif defined(HAVE_LIBPYTHON2_7)
+  "2.7.5";
+#endif
+
+/* Used to aid finding Python in exceptional situations. */
+
+static char host_name_string[]=
+#if defined(__APPLE__)
+  "darwin";
+#elif defined(__MINGW32__)
+  "windows";
+#else
+  "linux";
+#endif
+
+static char host_arch_string[]=
+#if (_LP64==1) || (__WIN64__==1)
+  "x86_64";
+#else
+  "x86";
+#endif
+/* ANDROID CHANGE END */
+
 #include "libiberty.h"
 #include "cli/cli-decode.h"
 #include "charset.h"
@@ -1422,6 +1453,247 @@ user_show_python (char *args, int from_tty)
 /* Initialize the Python code.  */
 
 #ifdef HAVE_PYTHON
+/* ANDROID CHANGE BEGIN */
+/* Provided input is not NULL, will always return a pointer into it. */
+char* last_n_folder_elements(char* input, char slash, size_t n_folders)
+{
+  char* temp;
+  size_t counter;
+  temp = strrchr(input,slash);
+  if (temp == NULL)
+  {
+    return input;
+  }
+  counter = n_folders;
+  while (counter != 0)
+  {
+    while (temp >= input && *temp != slash)
+	{
+	  --temp;
+    }
+	if (temp < input)
+	{
+      return input;
+	}
+	--temp;
+	--counter;
+  }
+  if (temp[1] == slash)
+  {
+    return temp+1;
+  }
+  return temp;
+}
+
+/* Either adds a new clue or frees it if already exists. */
+size_t add_clue(size_t n_so_far, char** clues, char* new_clue)
+{
+  size_t counter;
+  for (counter = 0; counter < n_so_far; ++counter)
+    {
+      if (!strcmp(clues[counter],new_clue))
+	    {
+		  free(new_clue);
+		  return n_so_far;
+	    }
+    }
+  clues[n_so_far++] = new_clue;
+  return n_so_far;
+}
+
+/* Both python_executable and pythonhome should point to NULL pointers
+   This function contains some hard coded assumptions, mostly all calls to
+    last_n_folder_elements make assumptions of a relative layout between gdb
+    and Python.
+   For my latest release, I've ended up with a layout that I don't think I'm
+    going to go with long-term:
+    Python has a prefix of toolchains/prebuilt/linux-x86/python-2.7.5
+    but I'm thinking of dropping the final python-2.7.5 folder.
+    See notes [1] and [2] below for more details.
+*/
+void find_python_executable_and_pythonhome(char** python_executable,
+                                           char** pythonhome)
+{
+  int debug_this = 0;
+#ifdef __MINGW32__
+  #define PYTHON_EXE "python.exe"
+  #define OS_STAT _stat
+#else
+  #define PYTHON_EXE "python"
+  #define OS_STAT stat
+#endif
+  char slash_string[2] = "/";
+  char other_slash_string[2] = "\\";
+  char* temp;
+  char* host_py_folders;
+  char* binexesuffix;
+  char* gdb_program_name_n;
+  /* Clues always include binexesuffix */
+  char* clues[5];
+  size_t n_clues = 0;
+  size_t counter;
+  struct OS_STAT buf;
+
+  /* Normalise paths to // or \, depending on whether
+     or not // was found in gdb_program_name. Do this
+     first as we will modify --with-python-path also. */
+  extern char* gdb_program_name;
+  if (debug_this) fprintf(stderr,"gdb_program_name is %s\n",gdb_program_name);
+  gdb_program_name_n = concat(gdb_program_name,NULL);
+  if (strchr(gdb_program_name_n,'\\'))
+   {
+     slash_string[0] = '\\';
+     other_slash_string[0] = '/';
+   }
+  temp = strchr(gdb_program_name_n, other_slash_string[0]);
+  while (temp != NULL)
+   {
+     *temp = slash_string[0];
+     temp = strchr(temp, other_slash_string[0]);
+   }
+#ifdef __MINGW32__
+  /* Ensure drive letter is upper case. */
+  if (strlen(gdb_program_name_n)>1 && gdb_program_name_n[1]==':')
+   {
+      gdb_program_name_n[0] = toupper(gdb_program_name_n[0]);
+   }
+#endif
+  /* [1] Get a clue from gdb_program_name_n, remove the program part
+      once (if) the re-arrangement mentioned at the top of this
+      function takes place, this clue will be the one that hits. */
+  temp = concat(gdb_program_name_n,slash_string,PYTHON_EXE,NULL);
+  if (strrchr(temp, slash_string[0])!=NULL)
+      *strrchr(temp, slash_string[0])='\0';
+  if (strrchr(temp, slash_string[0])!=NULL)
+      *strrchr(temp, slash_string[0])='\0';
+  strcat(temp,slash_string);
+  strcat(temp,PYTHON_EXE);
+  n_clues = add_clue(n_clues, clues, xstrdup(
+                     last_n_folder_elements( temp, slash_string[0], 4) ) );
+  free(temp);
+
+  /* binexesuffix is the bit which when appended to the Python prefix
+     forms the full path to the Python executable. */
+  binexesuffix = concat( slash_string, "bin", slash_string, PYTHON_EXE, NULL );
+  if (debug_this) fprintf(stderr,"binexesuffix is %s\n",binexesuffix);
+#ifdef WITH_PYTHON_PATH
+  /* Work around problem where python gets confused about where it is,
+     and then can't find its libraries, etc.
+     NOTE: Python assumes the following layout:
+     /foo/bin/python
+     /foo/lib/pythonX.Y/...
+     This must be done before calling Py_Initialize.  */
+
+  if (debug_this) fprintf(stderr,"python_libdir is %s\n",python_libdir);
+  *python_executable = concat (ldirname (python_libdir), binexesuffix, NULL);
+  if (debug_this) fprintf(stderr,"python_executable is %s\n",
+                          *python_executable);
+  temp = strchr(*python_executable, other_slash_string[0]);
+  while (temp != NULL)
+  {
+    *temp = slash_string[0];
+    temp = strchr(temp, other_slash_string[0]);
+  }
+  if (debug_this) fprintf(stderr,"*python_executable (2) is %s\n",
+                          *python_executable);
+#endif
+
+  /* If python_executable from WITH_PYTHON_PATH exists use it - usually won't
+      as it'll be in a build or a temporary install folder. */
+  if ( *python_executable == NULL || OS_STAT(*python_executable, &buf) )
+  {
+    /* If *python_executable didn't exist there could still be value in
+       it as a clue (the last four path elements). */
+    if (*python_executable != NULL)
+    {
+      n_clues = add_clue(n_clues, clues, xstrdup( last_n_folder_elements(
+                         *python_executable, slash_string[0], 4) ) );
+      free(*python_executable);
+      *python_executable = NULL;
+    }
+  }
+
+  if (*python_executable == NULL)
+  {
+    n_clues = add_clue(n_clues, clues, concat(binexesuffix, NULL));
+    /* [2] - Until rearranged, this clue is the one which will hit. */
+    n_clues = add_clue(n_clues, clues, concat(slash_string, "prebuilt",
+                       slash_string, host_name_string, "-", host_arch_string,
+          slash_string, "python-", pyver_string, binexesuffix, NULL));
+    /* this is for a relocated toolchain where
+       python has been placed alongside gdb */
+    n_clues = add_clue(n_clues, clues, concat(slash_string, PYTHON_EXE, NULL));
+
+    temp = strrchr(gdb_program_name_n,slash_string[0]);
+    if (debug_this) fprintf(stderr,"temp  is %s\n",temp);
+    while (temp != NULL && *python_executable == NULL )
+     {
+       if (debug_this) fprintf(stderr,"temp  is %s, gdb_program_name_n is %s\n"
+                               ,temp,gdb_program_name_n);
+       *temp = '\0';
+       for (counter = 0; counter < n_clues; ++counter)
+        {
+          temp = concat(gdb_program_name_n, clues[counter], NULL);
+          if (debug_this) fprintf(stderr,"*temp (statcheck) is %s\n",temp);
+          if (!OS_STAT(temp, &buf))
+           {
+             *python_executable = temp;
+             break;
+           }
+          free(temp);
+        }
+      temp = strrchr(gdb_program_name_n,slash_string[0]);
+     }
+  }
+
+  if (debug_this)
+   {
+    fprintf(stderr,"Clues are:\n");
+    for (counter = 0; counter < n_clues; ++counter)
+     {
+        fprintf(stderr,"clues[%d] is %s\n",counter,clues[counter]);
+     }
+   }
+
+  /* For Android platform gdb, we use this clue to find the prebuilt python */
+  char *android_top = getenv("ANDROID_BUILD_TOP");
+  if (android_top)
+    {
+      /* Android platform prebuilt python is at
+       * prebuilts/python/{linux,darwin}-x86/2.7.5
+       * Only 64-bit version is available so we use the hardcoded -x86 hostarch.
+       */
+      temp = concat(android_top, slash_string,
+                    "prebuilts", slash_string,
+                    "python", slash_string,
+                    host_name_string, "-x86", slash_string,
+                    pyver_string, binexesuffix, NULL);
+      if (debug_this) fprintf(stderr, "platform path is %s\n", temp);
+      if (!OS_STAT(temp, &buf))
+	*python_executable = temp;
+      else
+	free(temp);
+    }
+
+  if (*python_executable && strstr(*python_executable,binexesuffix) != NULL)
+    {
+      *pythonhome = xstrdup(*python_executable);
+      strstr(*pythonhome,binexesuffix)[1]='\0';
+    }
+  if (debug_this) fprintf(stderr,"python_executable is %s, pythonhome is %s\n"
+                          ,*python_executable?*python_executable:"<NOT FOUND>"
+                          ,*pythonhome?*pythonhome:"<NOT FOUND>");
+
+  for (counter = 0; counter < n_clues; ++counter)
+   {
+     free(clues[counter]);
+   }
+  free(binexesuffix);
+  free(gdb_program_name_n);
+#undef PYTHON_EXE
+#undef OS_STAT
+}
+/* ANDROID CHANGE END */
 
 /* This is installed as a final cleanup and cleans up the
    interpreter.  This lets Python's 'atexit' work.  */
@@ -1455,6 +1727,15 @@ _initialize_python (void)
   char *oldloc;
   wchar_t *progname_copy;
 #endif
+  /* ANDROID CHANGE BEGIN */
+#ifdef HAVE_PYTHON
+  char* python_executable = NULL;
+  char* pythonhome = NULL;
+#ifdef __MINGW32__
+  char* putenvstr = NULL;
+#endif
+#endif
+  /* ANDROID CHANGE END */
 
   add_com ("python-interactive", class_obscure,
 	   python_interactive_command,
@@ -1528,14 +1809,25 @@ message == an error message without a stack will be printed."),
 
 #ifdef HAVE_PYTHON
 #ifdef WITH_PYTHON_PATH
-  /* Work around problem where python gets confused about where it is,
-     and then can't find its libraries, etc.
-     NOTE: Python assumes the following layout:
-     /foo/bin/python
-     /foo/lib/pythonX.Y/...
-     This must be done before calling Py_Initialize.  */
-  progname = concat (ldirname (python_libdir), SLASH_STRING, "bin",
-		     SLASH_STRING, "python", NULL);
+  /* ANDROID CHANGE BEGIN */
+  find_python_executable_and_pythonhome(&python_executable, &pythonhome);
+  if (python_executable != NULL)
+  {
+    Py_SetProgramName (python_executable);
+    free(python_executable);
+  }
+  if (pythonhome != NULL)
+  {
+#if defined(__MINGW32__)
+    putenvstr=concat("PYTHONHOME=", pythonhome, NULL);
+    _putenv(putenvstr);
+    free(putenvstr);
+#else
+    setenv("PYTHONHOME", pythonhome, 1);
+#endif
+    free(pythonhome);
+  }
+  /* ANDROID CHANGE END */
 #ifdef IS_PY3K
   oldloc = setlocale (LC_ALL, NULL);
   setlocale (LC_ALL, "");
