@@ -1210,6 +1210,19 @@ thread_apply_all_command (char *cmd, int from_tty)
   do_cleanups (old_chain);
 }
 
+int thread_apply_ignore_memory_errors; 
+/* Apportable - so that thread apply all bt will continue past threads like
+
+#0  0x401345c8 in ?? () from /Users/paul/dev/dcf/DeviceCache/016B7DFD0100F00A/libs/libc.so
+#1  0x400dab14 in android::Looper::pollInner(int) () from /Users/paul/dev/dcf/DeviceCache/016B7DFD0100F00A/libs/libutils.so
+#2  0x400dad74 in android::Looper::pollOnce(int, int*, int*, void**) () from /Users/paul/dev/dcf/DeviceCache/016B7DFD0100F00A/libs/libutils.so
+#3  0x4021bd56 in android::NativeMessageQueue::pollOnce(_JNIEnv*, int) () from /Users/paul/dev/dcf/DeviceCache/016B7DFD0100F00A/libs/libandroid_runtime.so
+#4  0x407e8294 in dvmPlatformInvoke () from /Users/paul/dev/dcf/DeviceCache/016B7DFD0100F00A/libs/libdvm.so
+#5  0x40817414 in dvmCallJNIMethod(unsigned int const*, JValue*, Method const*, Thread*) () from /Users/paul/dev/dcf/DeviceCache/016B7DFD0100F00A/libs/libdvm.so
+#6  0x5f28d218 in ?? ()
+Cannot access memory at address 0x0
+*/
+
 static void
 thread_apply_command (char *tidlist, int from_tty)
 {
@@ -1217,6 +1230,8 @@ thread_apply_command (char *tidlist, int from_tty)
   struct cleanup *old_chain;
   char *saved_cmd;
   struct get_number_or_range_state state;
+
+  thread_apply_ignore_memory_errors = 1;
 
   if (tidlist == NULL || *tidlist == '\000')
     error (_("Please specify a thread ID list"));
@@ -1261,6 +1276,7 @@ thread_apply_command (char *tidlist, int from_tty)
     }
 
   do_cleanups (old_chain);
+  thread_apply_ignore_memory_errors = 0;
 }
 
 /* Switch to the specified thread.  Will dispatch off to thread_apply_command
