@@ -2670,6 +2670,8 @@ prepare_for_detach (void)
   discard_cleanups (old_chain_1);
 }
 
+int waiting_for_inferior;  // See waiting_for_inferior comment in arm-tdep.c
+
 /* Wait for control to return from inferior to debugger.
 
    If inferior gets a signal, we may decide to start it up again
@@ -2685,6 +2687,8 @@ wait_for_inferior (void)
   if (debug_infrun)
     fprintf_unfiltered
       (gdb_stdlog, "infrun: wait_for_inferior ()\n");
+
+  waiting_for_inferior = 1;
 
   old_cleanups =
     make_cleanup (delete_step_thread_step_resume_breakpoint_cleanup, NULL);
@@ -2736,6 +2740,7 @@ wait_for_inferior (void)
     }
 
   do_cleanups (old_cleanups);
+  waiting_for_inferior = 0;
 }
 
 /* Asynchronous version of wait_for_inferior.  It is called by the
