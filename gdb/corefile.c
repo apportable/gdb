@@ -211,6 +211,8 @@ memory_error (int status, CORE_ADDR memaddr)
 		 safe_strerror (status));
 }
 
+extern int thread_apply_ignore_memory_errors; /* see explanation in thread.c */
+
 /* Same as target_read_memory, but report an error if can't read.  */
 
 void
@@ -219,7 +221,7 @@ read_memory (CORE_ADDR memaddr, gdb_byte *myaddr, ssize_t len)
   int status;
 
   status = target_read_memory (memaddr, myaddr, len);
-  if (status != 0)
+  if (status != 0 && !thread_apply_ignore_memory_errors)
     memory_error (status, memaddr);
 }
 
