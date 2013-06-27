@@ -2779,6 +2779,7 @@ arm_exidx_unwind_sniffer (const struct frame_unwind *self,
   CORE_ADDR addr_in_block, exidx_region, func_start;
   struct arm_prologue_cache *cache;
   gdb_byte *entry;
+  extern int waiting_for_inferior;
 
   /* See if we have an ARM exception table entry covering this address.  */
   addr_in_block = get_frame_address_in_block (this_frame);
@@ -2845,7 +2846,24 @@ arm_exidx_unwind_sniffer (const struct frame_unwind *self,
 	might reject perfectly valid entries that just happen to cover
 	multiple functions; therefore this check ought to be removed
 	once the linker is fixed.  */
-      if (func_start > exidx_region)
+
+
+
+        /* Apportable HACK waiting_for_inferior global - 
+
+        if allowed to continue, arm_exidx_fill_cache
+        will mess up the stack_addr which will cause the test 
+              && (frame_id_eq (frame_unwind_caller_id (get_current_frame ()),
+                       ecs->event_thread->control.step_stack_frame_id)
+        in infrun.c - handle_inferior_event to step into instead of 
+        nexting into functions defined in the same file 
+        
+        run control doesn't seem to need this to succeed, 
+        but backtrace will infinite loop at the top of the 
+        stack if we always return 0
+        */
+
+      if (func_start > exidx_region || waiting_for_inferior)
 	return 0;
     }
 
