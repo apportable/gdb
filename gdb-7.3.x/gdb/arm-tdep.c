@@ -4,6 +4,8 @@
    2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
+   Copyright (c) 2013, NVIDIA CORPORATION.  All rights reserved.
+
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
@@ -266,6 +268,9 @@ static CORE_ADDR arm_analyze_prologue (struct gdbarch *gdbarch,
 /* Set to true if the 32-bit mode is in use.  */
 
 int arm_apcs_32 = 1;
+
+/* Set to true if unwinding via exidx is desired. */
+int arm_exidx_unwinding = 1;
 
 /* Return the bit mask in ARM_PS_REGNUM that indicates Thumb mode.  */
 
@@ -2971,6 +2976,10 @@ arm_exidx_unwind_sniffer (const struct frame_unwind *self,
   struct arm_prologue_cache *cache;
   gdb_byte *entry;
 
+  /* has the user disabled unwinding via exception table data? */
+  if (!arm_exidx_unwinding)
+    return 0;
+
   /* See if we have an ARM exception table entry covering this address.  */
   addr_in_block = get_frame_address_in_block (this_frame);
   entry = arm_find_exidx_entry (addr_in_block, &exidx_region);
@@ -3039,6 +3048,83 @@ arm_exidx_unwind_sniffer (const struct frame_unwind *self,
       if (func_start > exidx_region)
 	return 0;
     }
+  else
+    {
+      /* ARM exidx data is yielding the wrong return address, when we
+         lack symbols, and are sitting inside a function prologue.
+         Work around this by refusing to use exidx data, if
+         we detect we are at a PUSH {LR} instruction. */
+      if (frame_relative_level (this_frame) == 0)
+        {
+          CORE_ADDR pc = get_frame_pc (this_frame);
+          LONGEST insn;
+          uint16_t *insn16 = (uint16_t*)&insn;
+          int is_prologue = 0;
+
+          /* Read the maximum amount of memory required. */
+          if (!safe_read_memory_integer (pc, 4,
+                                         byte_order_for_code, &insn))
+            {
+              /* There seems to be a problem reading memory.
+                 Let's just bail out on this unwind method. */
+              return 0;
+            }
+
+          if (arm_frame_is_thumb (this_frame))
+            {
+              if ((insn16[0] & 0xfe00) == 0xb400)
+                {
+                  /* PUSH {..., LR }, 2-byte Thumb variant*/
+                  if ((insn16[0] & 0x0100))  /* check for LR */
+                    is_prologue = 1;
+                }
+              else if ((insn16[0] & 0xffff) == 0xe92d)
+                {
+                  /* PUSH.W {..., LR }, 4-byte Thumb variant #1:
+                     "stmdb   sp!, {..., lr}" */
+                  if (insn16[1] & 0x4000) /* check for LR */
+                    is_prologue = 1;
+                }
+              else if ((insn & 0x0fffffff) == 0x0d04f84d)
+                {
+                  /* PUSH.W {LR}, 4-byte variant #2:
+                     "str.w   lr, [sp, #-4]!" */
+                  if ((insn16[1] & 0xf000) == 0xe000)
+                    is_prologue = 1;
+                }
+            }
+          else
+            {
+              /* Usually, we would need to read cpsr to evaluate the
+                 condition code bits.  But I think I will just assume
+                 that any 'PUSH {LR}' instruction inside a prologue
+                 would use condition=ALWAYS. */
+
+              if ((insn & 0x0fff0000) == 0x092d0000)
+                {
+                  /* PUSH<c> {..., LR}, ARM variant #1 */
+                  if (insn & 0x00004000) /* check for LR */
+                    is_prologue = 1;
+                }
+              else if ((insn & 0x0fff0fff) == 0x052d0004)
+                {
+                  /* PUSH<c> {LR}, ARM variant #2 */
+                  if ((insn & 0x0000f000) == 0x0000e000) /* check for LR */
+                    is_prologue = 1;
+                }
+
+              /* condition check: needs to be 'AL' */
+              if ((insn & 0xf0000000) != 0xe0000000)
+                is_prologue = 0;
+            }
+
+          if (is_prologue)
+            return 0;
+        }
+
+        /* Not the youngest frame, or not a detected prologue.
+           Just fall-through to the exidx support */
+      }
 
   /* Decode the list of unwinding instructions into a prologue cache.
      Note that this may fail due to e.g. a "refuse to unwind" code.  */
@@ -9003,6 +9089,15 @@ vfp - VFP co-processor."),
 			_("Show the mode assumed even when symbols are available."),
 			NULL, NULL, arm_show_force_mode,
 			&setarmcmdlist, &showarmcmdlist);
+
+  /* Add command to let user enable/disable use of ARM exidx data for unwinding */
+  add_setshow_boolean_cmd ("exidx-unwinding", no_class, &arm_exidx_unwinding,
+                           _("Set usage of ARM exidx data for unwinding."),
+                           _("Show usage of ARM exidx data for unwinding."),
+                           _("When on ARM exidx data will be used for stack unwinding."),
+                           NULL,
+                           NULL,
+                           &setarmcmdlist, &showarmcmdlist);
 
   /* Debugging flag.  */
   add_setshow_boolean_cmd ("arm", class_maintenance, &arm_debug,
