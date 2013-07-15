@@ -19,6 +19,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
+#include "arch-utils.h"
 #include "target.h"
 #include "frame.h"
 #include "value.h"
@@ -32,6 +33,9 @@
 #include "language.h"
 #include "valprint.h"
 #include "exceptions.h"
+#include "objfiles.h"
+#include "psymtab.h"
+#include <ctype.h>  /* for isnumber */
 
 enum what_to_list { locals, arguments, all };
 
@@ -96,6 +100,253 @@ mi_cmd_stack_list_frames (char *command, char **argv, int argc)
 
   do_cleanups (cleanup_stack);
 }
+
+/* Apple addition begin */
+
+/* Helper print function for mi_cmd_stack_list_frames_lite */
+
+/* FRAME_NUM will be unmodified if this function only prints a single
+   concrete frame.  It will be incremented once for each inlined frame
+   that is printed in addition to the concrete frame.  */
+
+static void 
+mi_print_frame_info_lite_base (struct ui_out *uiout,
+             int with_names,
+             int *frame_num,
+             CORE_ADDR pc,
+             CORE_ADDR fp)
+{
+  char num_buf[8];
+  struct cleanup *list_cleanup;
+  struct gdbarch *gdbarch = get_current_arch ();
+  struct obj_section *osect;
+
+#if 0
+// Apportable TODO
+  print_inlined_frames_lite (uiout, with_names, frame_num, pc, fp);
+#endif
+
+  sprintf (num_buf, "%d", *frame_num);
+  ui_out_text (uiout, "Frame ");
+  ui_out_text(uiout, num_buf);
+  ui_out_text(uiout, ": ");
+  list_cleanup = make_cleanup_ui_out_tuple_begin_end (uiout, num_buf);
+  ui_out_field_core_addr (uiout, "pc", gdbarch, pc);
+  ui_out_field_core_addr (uiout, "fp", gdbarch, fp);
+
+  osect = find_pc_section (pc);
+  if (osect != NULL && osect->objfile != NULL && osect->objfile->name != NULL)
+      ui_out_field_string (uiout, "shlibname", osect->objfile->name);
+  else 
+      ui_out_field_string (uiout, "shlibname", "<UNKNOWN>");
+
+  if (with_names)
+    {
+      struct minimal_symbol *msym ;
+      struct obj_section *osect;
+      int has_debug_info = 0;
+
+      /* APPLE LOCAL: if we are going to print names, we should raise
+         the load level to ALL.  We will avoid doing psymtab to symtab,
+         since we just want the function */
+
+#if 0
+// Apportable TODO
+      pc_set_load_state (pc, OBJF_SYM_ALL, 0);
+#endif
+      msym = lookup_minimal_symbol_by_pc (pc);
+      if (msym == NULL)
+  ui_out_field_string (uiout, "func", "<\?\?\?\?>");
+      else
+  {
+    const char *name = SYMBOL_PRINT_NAME (msym);
+    if (name == NULL)
+      ui_out_field_string (uiout, "func", "<\?\?\?\?>");
+    else
+      ui_out_field_string (uiout, "func", name);
+  } 
+      /* This is a pretty quick and dirty way to check whether there
+   are debug symbols for this PC...  I don't care WHAT symbol
+   contains the PC, just that there's some psymtab that
+   does.  */
+      osect = find_pc_sect_in_ordered_sections (pc, NULL);
+      if (osect != NULL && osect->the_bfd_section != NULL)
+  {
+    struct partial_symtab *psymtab_for_pc = find_pc_sect_psymtab_apple (pc, osect);
+    if (psymtab_for_pc != NULL)
+      has_debug_info = 1;
+    else
+      has_debug_info = 0;
+    
+  }
+      ui_out_field_int (uiout, "has_debug", has_debug_info);
+    }
+  ui_out_text (uiout, "\n");
+  do_cleanups (list_cleanup);
+}
+
+static void
+mi_print_frame_info_with_names_lite (struct ui_out *uiout,
+        int *frame_num,
+        CORE_ADDR pc,
+        CORE_ADDR fp)
+{
+  mi_print_frame_info_lite_base (uiout, 1, frame_num, pc, fp);
+}
+
+static void
+mi_print_frame_info_lite (struct ui_out *uiout,
+        int *frame_num,
+        CORE_ADDR pc,
+        CORE_ADDR fp)
+{
+  mi_print_frame_info_lite_base (uiout, 0, frame_num, pc, fp);
+}
+
+/* Print a list of the PC and Frame Pointers for each frame in the stack;
+   also return the total number of frames. An optional argument "-limit"
+   can be give to limit the number of frames printed. 
+   An optional "-names (0|1)" flag can be given which if 1 will cause the names to
+   get printed with the backtrace.
+  */
+
+void
+mi_cmd_stack_list_frames_lite (char *command, char **argv, int argc)
+{
+    int limit;
+    int start;
+    int count_limit;
+    int names;
+    int valid;
+    unsigned int count = 0;
+    void (*print_fun) (struct ui_out*, int*, CORE_ADDR, CORE_ADDR);
+    struct ui_out *uiout = current_uiout;
+
+#ifndef FAST_COUNT_STACK_DEPTH
+    int i;
+    struct frame_info *fi;
+#endif
+
+    if (!target_has_stack)
+        error ("mi_cmd_stack_list_frames_lite: No stack.");
+
+    if ((argc > 8))
+        error ("mi_cmd_stack_list_frames_lite: Usage: [-names (0|1)] [-start start-num] "
+               "[-limit max_frame_number] [-count_limit how_many_to_count]");
+
+    limit = -1;
+    names = 0;
+    count_limit = -1;
+    start = 0;
+
+    while (argc > 0)
+      {
+  if (strcmp (argv[0], "-limit") == 0)
+    {
+      if (argc == 1)
+        error ("mi_cmd_stack_list_frames_lite: No argument to -limit.");
+
+      if (! isnumber (argv[1][0]))
+        error ("mi_cmd_stack_list_frames_lite: Invalid argument to -limit.");
+      limit = atoi (argv[1]);
+      argc -= 2;
+      argv += 2;
+    }
+  else if (strcmp (argv[0], "-start") == 0)
+          {
+            if (argc == 1)
+              error ("mi_cmd_stack_list_frames_lite: No argument to -start.");
+
+            if (! isnumber (argv[1][0]))
+              error ("mi_cmd_stack_list_frames_lite: Invalid argument to -start.");
+            start = atoi (argv[1]);
+            argc -= 2;
+            argv += 2;
+          }
+  else if (strcmp (argv[0], "-count_limit") == 0)
+          {
+            if (argc == 1)
+              error ("mi_cmd_stack_list_frames_lite: No argument to -count_limit.");
+
+            if (! isnumber (argv[1][0]))
+              error ("mi_cmd_stack_list_frames_lite: Invalid argument to -count_limit.");
+            count_limit = atoi (argv[1]);
+            argc -= 2;
+            argv += 2;
+          }
+  else if (strcmp (argv[0], "-names") == 0)
+    {
+      if (argc == 1)
+        error ("mi_cmd_stack_list_frames_lite: No argument to -names.");
+
+      if (! isnumber (argv[1][0]))
+        error ("mi_cmd_stack_list_frames_lite: Invalid argument to -names.");
+      names = atoi (argv[1]);
+      argc -= 2;
+      argv += 2;
+    }
+  else
+    error ("mi_cmd_stack_list_frames_lite: invalid flag: %s", argv[0]);
+      }
+  
+
+    if (names)
+      print_fun = mi_print_frame_info_with_names_lite;
+    else
+      print_fun = mi_print_frame_info_lite;
+
+#ifdef FAST_COUNT_STACK_DEPTH
+    valid = FAST_COUNT_STACK_DEPTH (count_limit, start, limit, &count, print_fun);
+#else
+    /* Start at the inner most frame */
+    {
+      struct cleanup *list_cleanup;
+      for (fi = get_current_frame (); fi ; fi = get_next_frame(fi))
+        ;
+
+      fi = get_current_frame ();
+      
+      if (fi == NULL)
+        error ("mi_cmd_stack_list_frames_lite: No frames in stack.");
+      
+      list_cleanup = make_cleanup_ui_out_list_begin_end (uiout, "frames");
+      
+      for (i = 0; fi != NULL; (fi = get_prev_frame (fi)), i++) 
+  {
+    QUIT;
+    
+    if ((limit == -1) || (i >= start && i < limit))
+      {
+        int j;
+        print_fun (uiout, &i, get_frame_pc (fi), 
+                                        get_frame_base(fi));
+              j = frame_relative_level (fi);
+              while ((j < i) && (fi != NULL))
+                {
+                  fi = get_prev_frame (fi);
+                  ++j;
+                }
+              if (fi == NULL)
+                  break;
+      }
+    if (count_limit != -1 && i > count_limit)
+      break;
+  }
+      
+      count = i;
+      valid = 1;
+      do_cleanups (list_cleanup);
+    }
+#endif
+    
+    ui_out_text (uiout, "Valid: ");
+    ui_out_field_int (uiout, "valid", valid);
+    ui_out_text (uiout, "\nCount: ");
+    ui_out_field_int (uiout, "count", count);
+    ui_out_text (uiout, "\n");
+}
+
+/* Apple addition end */
 
 void
 mi_cmd_stack_info_depth (char *command, char **argv, int argc)

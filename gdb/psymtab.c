@@ -57,10 +57,6 @@ static struct partial_symbol *lookup_partial_symbol (struct partial_symtab *,
 
 static char *psymtab_to_fullname (struct partial_symtab *ps);
 
-static struct partial_symbol *find_pc_sect_psymbol (struct partial_symtab *,
-						    CORE_ADDR,
-						    struct obj_section *);
-
 static struct partial_symbol *fixup_psymbol_section (struct partial_symbol
 						     *psym,
 						     struct objfile *objfile);
@@ -409,8 +405,9 @@ find_pc_sect_symtab_from_partial (struct objfile *objfile,
 
 /* Find which partial symbol within a psymtab matches PC and SECTION.
    Return 0 if none.  */
+/* static removed for apple */
 
-static struct partial_symbol *
+struct partial_symbol *
 find_pc_sect_psymbol (struct partial_symtab *psymtab, CORE_ADDR pc,
 		      struct obj_section *section)
 {

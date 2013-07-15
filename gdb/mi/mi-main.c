@@ -1714,6 +1714,38 @@ mi_cmd_enable_timings (char *command, char **argv, int argc)
   error (_("-enable-timings: Usage: %s {yes|no}"), command);
 }
 
+
+void
+mi_cmd_mi_verify_command (char *command, char **argv, int argc)
+{
+  char    *command_name = argv[0];
+  struct mi_cmd *cmd;
+  struct ui_out *uiout = current_uiout;
+  
+  if (argc != 1)
+    {
+      error ("mi_cmd_mi_verify_command: Usage: MI_COMMAND_NAME.");
+    }
+
+  cmd = mi_lookup (command_name);
+
+  ui_out_field_string (uiout, "name", command_name);
+  if (cmd != NULL) 
+    {
+       ui_out_field_string (uiout, "defined", "true");
+       ui_out_field_string (uiout, "implemented",
+            ((cmd->cli.cmd != NULL) ||
+             (cmd->argv_func != NULL) /* ||
+             (cmd->args_func != NULL) */) ? "true" : "false");
+    }
+  else 
+    {
+       ui_out_field_string (uiout, "defined", "false");
+    }
+}
+
+
+
 void
 mi_cmd_list_features (char *command, char **argv, int argc)
 {

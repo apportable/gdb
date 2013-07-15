@@ -979,6 +979,12 @@ syms_from_objfile (struct objfile *objfile,
   (*objfile->sf->sym_init) (objfile);
   clear_complaints (&symfile_complaints, 1, add_flags & SYMFILE_VERBOSE);
 
+    /* APPLE LOCAL: Since we might be changing the section 
+     offsets for the objfile, we need to delete it from the
+     ordered sections array & put it back in later.  */
+
+  objfile_delete_from_ordered_sections (objfile);
+
   if (addrs)
     (*objfile->sf->sym_offsets) (objfile, addrs);
   else
@@ -994,6 +1000,8 @@ syms_from_objfile (struct objfile *objfile,
 
       init_objfile_sect_indices (objfile);
     }
+
+  objfile_add_to_ordered_sections (objfile); /* Apple */
 
   (*objfile->sf->sym_read) (objfile, add_flags);
 

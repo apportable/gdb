@@ -48,4 +48,9 @@ extern const struct quick_symbol_functions dwarf2_gdb_index_functions;
 extern struct objfile *require_partial_symbols (struct objfile *objfile,
 						int verbose);
 
+/* Extern instead of static for Apple */
+extern struct partial_symbol *find_pc_sect_psymbol (struct partial_symtab *,
+                      CORE_ADDR,
+                      struct obj_section *);
+
 #endif /* PSYMTAB_H */

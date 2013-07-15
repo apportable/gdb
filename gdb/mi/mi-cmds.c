@@ -93,12 +93,14 @@ struct mi_cmd mi_cmds[] =
   { "interpreter-exec", { NULL, 0 }, mi_cmd_interpreter_exec},
   { "list-features", { NULL, 0 }, mi_cmd_list_features},
   { "list-target-features", { NULL, 0 }, mi_cmd_list_target_features},
-  { "list-thread-groups", { NULL, 0 }, mi_cmd_list_thread_groups },  
+  { "list-thread-groups", { NULL, 0 }, mi_cmd_list_thread_groups },
+  { "mi-verify-command", { NULL, 0 }, mi_cmd_mi_verify_command},  /* APPLE */
   { "remove-inferior", { NULL, 0 }, mi_cmd_remove_inferior },
   { "stack-info-depth", { NULL, 0 }, mi_cmd_stack_info_depth},
   { "stack-info-frame", { NULL, 0 }, mi_cmd_stack_info_frame},
   { "stack-list-arguments", { NULL, 0 }, mi_cmd_stack_list_args},
   { "stack-list-frames", { NULL, 0 }, mi_cmd_stack_list_frames},
+  { "stack-list-frames-lite", { NULL, 0 }, mi_cmd_stack_list_frames_lite}, /* APPLE */
   { "stack-list-locals", { NULL, 0 }, mi_cmd_stack_list_locals},
   { "stack-list-variables", { NULL, 0 }, mi_cmd_stack_list_variables},
   { "stack-select-frame", { NULL, 0 }, mi_cmd_stack_select_frame},

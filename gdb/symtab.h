@@ -1000,6 +1000,10 @@ extern struct symtab *find_pc_symtab (CORE_ADDR);
 
 extern struct symtab *find_pc_sect_symtab (CORE_ADDR, struct obj_section *);
 
+/* lookup partial symbol table by address and section  Apple addition */
+
+extern struct partial_symtab *find_pc_sect_psymtab_apple (CORE_ADDR, struct obj_section *);
+
 extern int find_pc_line_pc_range (CORE_ADDR, CORE_ADDR *, CORE_ADDR *);
 
 extern void reread_symbols (void);

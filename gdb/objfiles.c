@@ -253,6 +253,466 @@ get_objfile_arch (struct objfile *objfile)
   return objfile->gdbarch;
 }
 
+/* Apple addition begin */
+
+
+/* APPLE LOCAL - with the advent of ZeroLink, it is not uncommon for Mac OS X 
+   applications to consist of 500+ shared libraries.  At that point searching
+   linearly for address->obj_section becomes very costly, and it is a common
+   operation.  So we maintain an ordered array of obj_sections, and use that
+   to do a binary search for the matching section. 
+
+   N.B. We could just use an array of pointers to the obj_section
+   instead of this struct, but this way the malloc'ed array contains
+   all the elements we need to do the pc->obj_section lookup, so we
+   can do the search only touching a couple of pages of memory, rather
+   than wandering all over the heap.  
+
+   FIXME: We really should merge this array with the to_sections array in
+   the target, but that doesn't have back-pointers to the obj_section.  I
+   am not sure how hard it would be to get that working.  This is simpler 
+   for now.  */
+
+struct ordered_obj_section
+{
+  struct obj_section *obj_section;
+  struct bfd_section *the_bfd_section;
+  CORE_ADDR addr;
+  CORE_ADDR endaddr;
+};
+
+/* This is the table of ordered_sections.  It is malloc'ed to
+   ORDERED_SECTIONS_CHUNK_SIZE originally, and then realloc'ed if we
+   get more sections. */
+
+static struct ordered_obj_section *ordered_sections;
+
+/* This is the number of entries currently in the ordered_sections table.  */
+static int num_ordered_sections = 0;
+
+#define ORDERED_SECTIONS_CHUNK_SIZE 3000
+
+static int max_num_ordered_sections = ORDERED_SECTIONS_CHUNK_SIZE;
+
+static int find_in_ordered_sections_index (CORE_ADDR addr, struct bfd_section *bfd_section);
+static int get_insert_index_in_ordered_sections (struct obj_section *section);
+
+/* When we want to add a bunch of obj_sections at a time, we will
+   find all the insert points, make an array of type OJB_SECTION_WITH_INDEX
+   sort that in reverse order, then sweep the ordered_sections list
+   shifting and adding them all.  */
+
+struct obj_section_with_index
+{
+  int index;
+  struct obj_section *section;
+};
+
+
+/* This is the quicksort compare routine for OBJ_SECTION_WITH_INDEX
+   objects.  It sorts by section start address in decreasing 
+   order.  */
+
+static int
+backward_section_compare (const void *left_ptr, 
+     const void *right_ptr)
+{
+  
+  struct obj_section_with_index *left 
+    = (struct obj_section_with_index *) left_ptr;
+  struct obj_section_with_index * right 
+    = (struct obj_section_with_index *) right_ptr;
+
+  if (obj_section_addr(left->section) > obj_section_addr(right->section))
+    return -1;
+  else if (obj_section_addr(left->section) < obj_section_addr(right->section))
+    return 1;
+  else
+      return 0;
+}
+
+/* Simple integer compare for quicksort */
+
+static int
+forward_int_compare (const void *left_ptr, 
+     const void *right_ptr)
+{
+  int *left = (int *) left_ptr;
+  int *right = (int *) right_ptr;
+
+  if (*left < *right)
+    return -1;
+  else if (*left > *right)
+    return 1;
+  else
+      return 0;
+}
+
+/* APPLE LOCAL: The difference between the segment names and the section
+   names is the segment names always only have one dot.  Use this to count
+   the dots quickly...  */
+static int
+number_of_dots (const char *s)
+{
+  int numdots = 0;
+  while (*s != '\0')
+    {
+      if (*s == '.')
+  numdots++;
+      s++;
+    }
+  return numdots;
+}
+
+/* Delete all the obj_sections in OBJFILE from the ordered_sections
+   global list.  N.B. this routine uses the addresses in the sections
+   in the objfile to find the entries in the ordered_sections list, 
+   so if you are going to relocate the obj_sections in an objfile,
+   call this BEFORE you relocate, then relocate, then call 
+   objfile_add_to_ordered_sections.  */
+
+#define STATIC_DELETE_LIST_SIZE 256
+
+void 
+objfile_delete_from_ordered_sections (struct objfile *objfile)
+{
+  int i;
+  int ndeleted;
+  int delete_list_size;
+  int static_delete_list[STATIC_DELETE_LIST_SIZE];
+  int *delete_list = static_delete_list;
+  
+  struct obj_section *s;
+  
+#if 0
+  /* Apportable TODO */
+  /* APPLE LOCAL: we need to check if this is a separate debug files and try to 
+     remove the sections to the ordered list if so. The backlink will not be
+     setup when the separate debug objfile is in the process of being created, 
+     so a flag was added to make sure we can tell.  */
+  if (objfile->separate_debug_objfile_backlink || 
+      objfile->flags & OBJF_SEPARATE_DEBUG_FILE)
+  return; 
+#endif
+  /* Do deletion of the sections by building up an array of
+     "to be removed" indices, and then block compact the array using
+     these indices.  */
+  
+  delete_list_size = objfile->sections_end - objfile->sections;
+  if (delete_list_size > STATIC_DELETE_LIST_SIZE)
+    delete_list = (int *) xmalloc (delete_list_size * sizeof (int));
+
+  ndeleted = 0;
+
+  ALL_OBJFILE_OSECTIONS (objfile, s)
+    {
+      int index;
+      /* APPLE LOCAL: Oh, hacky, hacky...  The bfd Mach-O reader makes
+         bfd_sections for both the sections & segments (the container of
+         the sections).  This would make pc->bfd_section lookup non-unique.
+         so we just drop the segments from our list.  */
+      if (s->the_bfd_section && s->the_bfd_section->name &&
+          number_of_dots (s->the_bfd_section->name) == 1)
+        continue;
+
+      if (s->objfile->section_offsets == NULL) continue; 
+
+      index = find_in_ordered_sections_index (obj_section_addr(s), s->the_bfd_section);
+      if (index == -1)
+  warning ("Trying to remove a section from"
+      " the ordered section list that did not exist"
+      " at 0x%lx.", obj_section_addr(s));
+      else
+  {
+    delete_list[ndeleted] = index;
+    ndeleted++;
+  }
+    }
+  qsort (delete_list, ndeleted, sizeof (int),
+   forward_int_compare);
+
+  /* Stick a boundary on the end of the delete list - it makes the block
+     shuffle algorithm easier.  I also have to set the boundary to one
+     past the list end because it is supposed to be the next element
+     deleted, and I don't want to delete the last element.  */
+
+  delete_list[ndeleted] = num_ordered_sections;
+
+  for (i = 0; i < ndeleted; i++)
+    {
+      struct ordered_obj_section *src, *dest;
+      size_t len;
+
+      src = &(ordered_sections[delete_list[i] + 1]);
+      dest = &(ordered_sections[delete_list[i] - i]);
+      len = (delete_list[i+1] - delete_list[i] - 1)
+  * sizeof (struct ordered_obj_section);
+
+      bcopy (src, dest, len);
+    }
+
+  
+  num_ordered_sections -= ndeleted;
+  if (delete_list != static_delete_list)
+    xfree (delete_list);
+}
+
+/* This returns the index before which the obj_section SECTION
+   should be added in the ordered_sections list.  This only sorts
+   by addr, and pays no attention to endaddr, or the_bfd_section.  */
+
+static int
+get_insert_index_in_ordered_sections (struct obj_section *section)
+{
+  int insert = -1;
+
+  if (num_ordered_sections > 0)
+    {
+      int bot = 0;
+      int top = num_ordered_sections - 1;
+
+      do
+  {
+    int mid = (top + bot) / 2;
+
+    if (ordered_sections[mid].addr < obj_section_addr(section))
+      {
+        if ((mid == num_ordered_sections - 1) 
+      || (ordered_sections[mid + 1].addr) >= obj_section_addr(section))
+    {
+      insert = mid;
+      break;
+    }
+        else if (mid + 1 == num_ordered_sections - 1)
+    {
+      insert = mid + 1;
+      break;
+    }
+        bot = mid + 1;
+      }
+    else
+      {
+        if (mid == 0 || ordered_sections[mid - 1].addr <= obj_section_addr(section))
+    {
+      insert = mid - 1;
+      break;
+    }
+        top = mid - 1;
+      }
+  } while (top > bot);
+    }
+
+  return insert + 1;
+}
+
+/* This adds all the obj_sections for OBJFILE to the ordered_sections
+   array */
+
+#define STATIC_INSERT_LIST_SIZE 256
+
+void
+objfile_add_to_ordered_sections (struct objfile *objfile)
+{
+  struct obj_section *s;
+  int i, num_left, total;
+  struct obj_section_with_index static_insert_list[STATIC_INSERT_LIST_SIZE];
+  struct obj_section_with_index *insert_list = static_insert_list;
+  int insert_list_size;
+
+  /* APPLE LOCAL: we need to check if this is a separate debug files and not 
+     add the sections to the ordered list if so. The backlink will not be setup
+     when the separate debug objfile is in the process of being created, so a 
+     flag was added to make sure it never gets added.  */
+#if 0
+  /* Apportable TODO */
+  if (objfile->separate_debug_objfile_backlink || 
+      objfile->flags & OBJF_SEPARATE_DEBUG_FILE)
+  return;
+
+  CHECK_FATAL (objfile != NULL);
+#endif
+
+  /* First find the index for insertion of all the sections in
+     this objfile.  The sort that array in reverse order by address,
+     then go through the ordered list block moving the bits between
+     the insert points, then adding the pieces we need to add.  */
+
+  insert_list_size = objfile->sections_end - objfile->sections;
+  if (insert_list_size > STATIC_INSERT_LIST_SIZE)
+    insert_list = (struct obj_section_with_index *) 
+      xmalloc (insert_list_size * sizeof (struct obj_section_with_index));
+
+  total = 0;
+  ALL_OBJFILE_OSECTIONS (objfile, s)
+    {
+      /* APPLE LOCAL: Oh, hacky, hacky...  The bfd Mach-O reader makes
+         bfd_sections for both the sections & segments (the container of
+         the sections).  This would make pc->bfd_section lookup non-unique.
+         so we just drop the segments from our list.  */
+      if (s->the_bfd_section && s->the_bfd_section->segment_mark == 1)
+        continue;
+
+      insert_list[total].index = get_insert_index_in_ordered_sections (s);
+      insert_list[total].section = s;
+      total++;
+    }
+
+  qsort (insert_list, total, sizeof (struct obj_section_with_index), 
+   backward_section_compare);
+
+  /* Grow the array if needed */
+
+  if (ordered_sections == NULL)
+    {
+      max_num_ordered_sections = ORDERED_SECTIONS_CHUNK_SIZE;
+      ordered_sections = (struct ordered_obj_section *)
+  xmalloc (max_num_ordered_sections 
+     * sizeof (struct ordered_obj_section));
+    }
+  else if (num_ordered_sections + total >= max_num_ordered_sections)
+    {
+      /* TOTAL should be small, but on the off chance that it is not, 
+   just add it to the allocation as well.  */
+      max_num_ordered_sections += ORDERED_SECTIONS_CHUNK_SIZE + total;
+      ordered_sections = (struct ordered_obj_section *) 
+  xrealloc (ordered_sections, 
+      max_num_ordered_sections 
+      * sizeof (struct ordered_obj_section));
+    }
+  
+  num_left = total;
+
+  for (i = 0; i < total; i++)
+    {
+      struct ordered_obj_section *src;
+      struct ordered_obj_section *dest;
+      struct obj_section *s;
+      size_t len;
+      int pos;
+
+      src = &(ordered_sections[insert_list[i].index]);
+      dest = &(ordered_sections[insert_list[i].index + num_left]);
+
+      if (i == 0)
+  len = num_ordered_sections - insert_list[i].index;
+      else
+  len = insert_list[i - 1].index - insert_list[i].index;
+      len *= sizeof (struct ordered_obj_section);
+      bcopy (src, dest, len);
+
+      /* Now put the new element in place */
+      s = insert_list[i].section;
+      pos = insert_list[i].index + num_left - 1;
+      ordered_sections[pos].addr = obj_section_addr(s);
+      ordered_sections[pos].endaddr = obj_section_endaddr(s);
+      ordered_sections[pos].obj_section = s;
+      ordered_sections[pos].the_bfd_section = s->the_bfd_section;
+
+      num_left--;
+      if (num_left == 0)
+  break;
+    }
+
+  num_ordered_sections += total;
+  if (insert_list != static_insert_list)
+    xfree (insert_list);
+
+}
+
+
+/* This returns the index in the ordered_sections array corresponding
+   to the pair ADDR, BFD_SECTION (can be null), or -1 if not found. */
+
+static int
+find_in_ordered_sections_index (CORE_ADDR addr, struct bfd_section *bfd_section)
+{
+  int bot = 0;
+  int top = num_ordered_sections;
+  struct ordered_obj_section *obj_sect_ptr;
+
+  if (num_ordered_sections == 0)
+    return -1;
+
+  do 
+    {
+      int mid = (top + bot) / 2;
+
+      obj_sect_ptr = &ordered_sections[mid]; 
+      if (obj_sect_ptr->addr <= addr)
+  {
+    if (addr < obj_sect_ptr->endaddr)
+      {
+        /* It is possible that the sections overlap.  This will
+     happen in two cases that I know of.  One is when you
+     have not run the app yet, so that a bunch of the
+     sections are still mapped at 0, and haven't been.
+     relocated yet.  The other is because on MacOS X we (I
+     think errantly) make sections both for the segment
+     command, and for the sections it contains.  In the former
+           case, this becomes a linear search just like the original
+           algorithm.  In the latter, we should find it in the
+           near neighborhood pretty soon.  */
+
+        if ((bfd_section == NULL )
+      || (bfd_section == obj_sect_ptr->the_bfd_section))
+    return mid;
+        else
+    {
+      /* So to find the containing element, we can look
+         to increasing indices, till the start address
+         of our element is above the addr, but we have to go
+         all the way to the left to find the address. */
+
+      int pos;
+      for (pos = mid + 1; pos < num_ordered_sections; pos++)
+        {
+          if (ordered_sections[pos].addr > addr)
+      break;
+          else if ((ordered_sections[pos].endaddr > addr)
+             && (ordered_sections[pos].the_bfd_section == bfd_section))
+      return pos;
+        }
+      for (pos = mid - 1; pos >= 0; pos--)
+        {
+          if ((ordered_sections[pos].endaddr > addr)
+        && (ordered_sections[pos].the_bfd_section == bfd_section))
+      return pos;
+        }
+
+      /* If we don't find one that matches BOTH the address and the 
+         section, then return -1.  Callers should be prepared to either
+         fail in this case, or to look more broadly.  */
+      return -1;
+    }
+      }
+    bot = mid + 1;
+  }
+      else
+  {
+    top = mid - 1;
+  }
+    } while (bot <= top);
+
+  /* If we got here, we didn't find anything, so return -1. */
+  return -1;
+}
+
+/* This returns the obj_section corresponding to the pair ADDR and
+   BFD_SECTION (can be NULL) in the ordered sections array, or NULL
+   if not found.  */
+
+struct obj_section *
+find_pc_sect_in_ordered_sections (CORE_ADDR addr, struct bfd_section *bfd_section)
+{
+  int index = find_in_ordered_sections_index (addr, bfd_section);
+  
+  if (index == -1)
+    return NULL;
+  else
+    return ordered_sections[index].obj_section;
+}
+/* Apple addition end */
+
 /* Initialize entry point information for this objfile.  */
 
 void

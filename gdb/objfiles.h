@@ -530,6 +530,15 @@ extern void default_iterate_over_objfiles_in_search_order
   (struct gdbarch *gdbarch,
    iterate_over_objfiles_in_search_order_cb_ftype *cb,
    void *cb_data, struct objfile *current_objfile);
+
+
+/* APPLE LOCAL: These manage & look up obj_sections in the ordered_sections
+   array.  */
+
+void objfile_add_to_ordered_sections (struct objfile *objfile);
+void objfile_delete_from_ordered_sections (struct objfile *objfile);
+struct obj_section *find_pc_sect_in_ordered_sections (CORE_ADDR addr, 
+                struct bfd_section *bfd_section);  
 
 
 /* Traverse all object files in the current program space.

@@ -83,6 +83,7 @@ extern mi_cmd_argv_ftype mi_cmd_stack_info_depth;
 extern mi_cmd_argv_ftype mi_cmd_stack_info_frame;
 extern mi_cmd_argv_ftype mi_cmd_stack_list_args;
 extern mi_cmd_argv_ftype mi_cmd_stack_list_frames;
+extern mi_cmd_argv_ftype mi_cmd_stack_list_frames_lite; /* Apple */
 extern mi_cmd_argv_ftype mi_cmd_stack_list_locals;
 extern mi_cmd_argv_ftype mi_cmd_stack_list_variables;
 extern mi_cmd_argv_ftype mi_cmd_stack_select_frame;
@@ -118,6 +119,8 @@ extern mi_cmd_argv_ftype mi_cmd_var_show_format;
 extern mi_cmd_argv_ftype mi_cmd_var_update;
 extern mi_cmd_argv_ftype mi_cmd_enable_pretty_printing;
 extern mi_cmd_argv_ftype mi_cmd_var_set_update_range;
+
+extern mi_cmd_argv_ftype mi_cmd_mi_verify_command;
 
 /* Description of a single command.  */
 

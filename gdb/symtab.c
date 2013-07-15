@@ -909,6 +909,181 @@ init_sal (struct symtab_and_line *sal)
 }
 
 
+/* APPLE LOCAL addition find_pc_sect_psymtab */
+
+/* Find which partial symtab contains PC and SECTION.  Return 0 if
+   none.  We return the psymtab that contains a symbol whose address
+   exactly matches PC, or, if we cannot find an exact match, the
+   psymtab that contains a symbol whose address is closest to PC.  */
+
+#include "psympriv.h"
+#define INVALID_ADDRESS ((CORE_ADDR) (-1))
+static CORE_ADDR last_block_lookup_pc = INVALID_ADDRESS;
+static CORE_ADDR last_blockvector_lookup_pc = INVALID_ADDRESS;
+static CORE_ADDR last_function_lookup_pc = INVALID_ADDRESS;
+static CORE_ADDR last_pc_line_lookup_pc = INVALID_ADDRESS;
+static CORE_ADDR last_psymtab_lookup_pc = INVALID_ADDRESS;
+static CORE_ADDR last_symtab_lookup_pc = INVALID_ADDRESS;
+static CORE_ADDR last_sect_section_lookup_pc = INVALID_ADDRESS;
+static CORE_ADDR last_mapped_section_lookup_pc = INVALID_ADDRESS;
+static CORE_ADDR last_overlay_section_lookup_pc = INVALID_ADDRESS;
+
+struct partial_symtab *
+find_pc_sect_psymtab_apple (CORE_ADDR pc, struct obj_section *section)
+{
+  struct partial_symtab *pst;
+  struct objfile *objfile;
+  struct minimal_symbol *msymbol;
+
+#if 0
+  /* Apportable TODO */
+  /* APPLE LOCAL begin cache lookup values for improved performance  */
+  if (pc == last_psymtab_lookup_pc
+      && pc == last_mapped_section_lookup_pc
+      && section == cached_mapped_section
+      && cached_psymtab)
+    return cached_psymtab;
+#endif
+  last_psymtab_lookup_pc = pc;
+  /* APPLE LOCAL end cache lookup values for improved performance  */
+
+  /* If we know that this is not a text address, return failure.  This is
+     necessary because we loop based on texthigh and textlow, which do
+     not include the data ranges.  */
+  msymbol = lookup_minimal_symbol_by_pc_section (pc, section);
+  if (msymbol
+      && (msymbol->type == mst_data
+    || msymbol->type == mst_bss
+    || msymbol->type == mst_abs
+    || msymbol->type == mst_file_data
+    || msymbol->type == mst_file_bss))
+    /* APPLE LOCAL begin cache lookup values for improved performance  */
+    {
+#if 0 
+  /* Apportable todo */
+      cached_psymtab = NULL;
+#endif
+      return NULL;
+    }
+    /* APPLE LOCAL end cache lookup values for improved performance  */
+
+  /* APPLE LOCAL: Change to ALL_OBJFILES from ALL_PSYMTABS so that
+     we can hoist the psymtab-invariant sections check out.  */
+  ALL_OBJFILES (objfile)
+  {
+    /* APPLE LOCAL: We were passed in the section, so don't look in 
+       objfiles that don't even share the bfd with that section...  */
+
+#if 0 
+  /* Apportable todo */
+    if (skip_non_matching_bfd (section, objfile))
+      continue;
+#endif
+    ALL_OBJFILE_PSYMTABS (objfile, pst)
+      {
+  if (pc >= pst->textlow && pc < pst->texthigh)
+    {
+      struct partial_symtab *tpst;
+      struct partial_symtab *best_pst = pst;
+      struct partial_symbol *best_psym = NULL;
+      
+      /* An objfile that has its functions reordered might have
+         many partial symbol tables containing the PC, but
+         we want the partial symbol table that contains the
+         function containing the PC.  */
+      if (!(objfile->flags & OBJF_REORDERED) &&
+    section == 0) /* can't validate section this way */
+        /* APPLE LOCAL begin cache lookup values for improved 
+     performance  */
+        {
+#if 0
+    cached_psymtab = pst;
+#endif
+    return (pst);
+        }
+        /* APPLE LOCAL end cache lookup values for improved 
+     performance  */
+      
+      if (msymbol == NULL)
+        /* APPLE LOCAL begin cache lookup values for improved 
+     performance  */
+        {
+#if 0
+    cached_psymtab = pst;
+#endif
+    return (pst);
+        }
+        /* APPLE LOCAL end cache lookup values for improved 
+     performance  */
+      
+      /* The code range of partial symtabs sometimes overlap, so, in
+         the loop below, we need to check all partial symtabs and
+         find the one that fits better for the given PC address. We
+         select the partial symtab that contains a symbol whose
+         address is closest to the PC address.  By closest we mean
+         that find_pc_sect_symbol returns the symbol with address
+         that is closest and still less than the given PC.  */
+      for (tpst = pst; tpst != NULL; tpst = tpst->next)
+        {
+    if (pc >= tpst->textlow && pc < tpst->texthigh)
+      {
+        struct partial_symbol *p;
+        
+        p = find_pc_sect_psymbol (tpst, pc, section);
+        if (p != NULL
+      && SYMBOL_VALUE_ADDRESS (p)
+      == SYMBOL_VALUE_ADDRESS (msymbol))
+          /* APPLE LOCAL begin cache lookup values for improved 
+       performance  */
+          {
+#if 0
+      cached_psymtab = tpst;
+#endif
+      return (tpst);
+          }
+        /* APPLE LOCAL end cache lookup values for improved 
+           performance  */
+        if (p != NULL)
+          {
+      /* We found a symbol in this partial symtab which
+         matches (or is closest to) PC, check whether it
+         is closer than our current BEST_PSYM.  Since
+         this symbol address is necessarily lower or
+         equal to PC, the symbol closer to PC is the
+         symbol which address is the highest.  */
+      /* This way we return the psymtab which contains
+         such best match symbol. This can help in cases
+         where the symbol information/debuginfo is not
+         complete, like for instance on IRIX6 with gcc,
+         where no debug info is emitted for
+         statics. (See also the nodebug.exp
+         testcase.)  */
+      if (best_psym == NULL
+          || SYMBOL_VALUE_ADDRESS (p)
+          > SYMBOL_VALUE_ADDRESS (best_psym))
+        {
+          best_psym = p;
+          best_pst = tpst;
+        }
+          }
+      }
+        }
+      /* APPLE LOCAL cache lookup values for improved performance  */
+#if 0
+      cached_psymtab = best_pst;
+#endif
+      return (best_pst);
+    }
+      }
+  }
+  /* APPLE LOCAL cache lookup values for improved performance  */
+#if 0
+  cached_psymtab = NULL;
+#endif
+  return (NULL);
+}
+ /* End Apple addition */
+
 /* Return 1 if the two sections are the same, or if they could
    plausibly be copies of each other, one in an original object
    file and another in a separated debug file.  */
