@@ -801,6 +801,12 @@ symbol_natural_name (const struct general_symbol_info *gsymbol)
 {
   switch (gsymbol->language)
     {
+    case language_auto: /* Some objc symbols get marked language_auto */
+    {
+      const char *dem_name = demangle_new_objc(gsymbol->name);
+      if (dem_name) return dem_name;
+      break;
+    }
     case language_cplus:
     case language_d:
     case language_go:

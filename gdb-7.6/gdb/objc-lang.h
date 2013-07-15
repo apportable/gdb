@@ -51,4 +51,6 @@ struct symbol *lookup_struct_typedef (char *name, const struct block *block,
 
 extern int new_objc_runtime_internals (void);
 
+extern char *demangle_new_objc(const char *in);
+
 #endif
