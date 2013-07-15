@@ -81,7 +81,7 @@ mi_cmd_break_insert (char *command, char **argv, int argc)
     {
       HARDWARE_OPT, TEMP_OPT, CONDITION_OPT,
       IGNORE_COUNT_OPT, THREAD_OPT, PENDING_OPT, DISABLE_OPT,
-      TRACEPOINT_OPT,
+      TRACEPOINT_OPT, LIST_OPT
     };
   static const struct mi_opt opts[] =
   {
@@ -93,6 +93,7 @@ mi_cmd_break_insert (char *command, char **argv, int argc)
     {"f", PENDING_OPT, 0},
     {"d", DISABLE_OPT, 0},
     {"a", TRACEPOINT_OPT, 0},
+    {"l", LIST_OPT, 1}, /* Apple compatibility, ignored */
     { 0, 0, 0 }
   };
 
@@ -133,7 +134,9 @@ mi_cmd_break_insert (char *command, char **argv, int argc)
 	case TRACEPOINT_OPT:
 	  tracepoint = 1;
 	  break;
-	}
+  case LIST_OPT:
+    break;
+  }
     }
 
   if (oind >= argc)
