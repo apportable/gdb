@@ -1126,7 +1126,7 @@ static char get_val(char in)
   return 0;
 }
 
-static char *demangle_new_objc(const char *in)
+char *demangle_new_objc(const char *in)
 {
   // Make sure first four characters are encoding for '+' or '-'
   if (!(in[0] == '_' && in[1] == '2' && (in[2] == 'B' || in[2] == 'D') && in[3] == '_')) {
