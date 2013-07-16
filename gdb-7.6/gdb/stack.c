@@ -792,6 +792,12 @@ print_frame_info (struct frame_info *frame, int print_level,
           ui_out_field_core_addr (uiout, "addr",
 				  gdbarch, get_frame_pc (frame));
           annotate_frame_address_end ();
+
+    /* APPLE LOCAL: include $fp and $pc for MI output so PB can
+       treat this like a normal debug-info-less frame in its
+       stack window. */
+          ui_out_field_core_addr (uiout, "fp", gdbarch, get_frame_base (frame));
+
         }
 
       if (get_frame_type (frame) == DUMMY_FRAME)
@@ -1146,6 +1152,14 @@ print_frame (struct frame_info *frame, int print_level,
 	  ui_out_field_string (uiout, "addr", "<unavailable>");
 	annotate_frame_address_end ();
 	ui_out_text (uiout, " in ");
+
+  /* APPLE LOCAL begin FRAME tuple includes an FP field */
+        if (ui_out_is_mi_like_p (uiout))
+          {
+            ui_out_field_core_addr (uiout, "fp", gdbarch, get_frame_base (frame));
+          }
+  /* APPLE LOCAL end FRAME tuple includes an FP field */
+
       }
   annotate_frame_function_name ();
   fprintf_symbol_filtered (stb, funname ? funname : "??",
