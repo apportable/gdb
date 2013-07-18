@@ -1648,7 +1648,8 @@ void init_ivar_offsets(struct type *t, struct value *struct_val)
         strcmp(a->main_type->tag_name, "NSObject") != 0;
        a = TYPE_FIELD_TYPE(a, 0)) {
 
-    if (a->main_type->flds_bnds.fields == NULL) {
+    if (a->main_type->flds_bnds.fields == NULL ||
+       a->main_type->flds_bnds.fields->type == a) {
       /* This is C++, so just return */
       return;
     }
