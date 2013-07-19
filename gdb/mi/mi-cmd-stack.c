@@ -35,7 +35,6 @@
 #include "exceptions.h"
 #include "objfiles.h"
 #include "psymtab.h"
-#include <ctype.h>  /* for isnumber */
 
 enum what_to_list { locals, arguments, all };
 
@@ -246,8 +245,8 @@ mi_cmd_stack_list_frames_lite (char *command, char **argv, int argc)
       if (argc == 1)
         error ("mi_cmd_stack_list_frames_lite: No argument to -limit.");
 
-      if (! isnumber (argv[1][0]))
-        error ("mi_cmd_stack_list_frames_lite: Invalid argument to -limit.");
+      // if (! isnumber (argv[1][0]))
+      //   error ("mi_cmd_stack_list_frames_lite: Invalid argument to -limit.");
       limit = atoi (argv[1]);
       argc -= 2;
       argv += 2;
@@ -257,8 +256,8 @@ mi_cmd_stack_list_frames_lite (char *command, char **argv, int argc)
             if (argc == 1)
               error ("mi_cmd_stack_list_frames_lite: No argument to -start.");
 
-            if (! isnumber (argv[1][0]))
-              error ("mi_cmd_stack_list_frames_lite: Invalid argument to -start.");
+            // if (! isnumber (argv[1][0]))
+            //   error ("mi_cmd_stack_list_frames_lite: Invalid argument to -start.");
             start = atoi (argv[1]);
             argc -= 2;
             argv += 2;
@@ -268,8 +267,8 @@ mi_cmd_stack_list_frames_lite (char *command, char **argv, int argc)
             if (argc == 1)
               error ("mi_cmd_stack_list_frames_lite: No argument to -count_limit.");
 
-            if (! isnumber (argv[1][0]))
-              error ("mi_cmd_stack_list_frames_lite: Invalid argument to -count_limit.");
+            // if (! isnumber (argv[1][0]))
+            //   error ("mi_cmd_stack_list_frames_lite: Invalid argument to -count_limit.");
             count_limit = atoi (argv[1]);
             argc -= 2;
             argv += 2;
@@ -279,8 +278,8 @@ mi_cmd_stack_list_frames_lite (char *command, char **argv, int argc)
       if (argc == 1)
         error ("mi_cmd_stack_list_frames_lite: No argument to -names.");
 
-      if (! isnumber (argv[1][0]))
-        error ("mi_cmd_stack_list_frames_lite: Invalid argument to -names.");
+      // if (! isnumber (argv[1][0]))
+      //   error ("mi_cmd_stack_list_frames_lite: Invalid argument to -names.");
       names = atoi (argv[1]);
       argc -= 2;
       argv += 2;
