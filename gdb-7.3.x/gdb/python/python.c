@@ -1189,6 +1189,26 @@ void find_python_executable_and_pythonhome(char** python_executable,
      }
    }
 
+  /* For Android platform gdb, we use this clue to find the prebuilt python */
+  char *android_top = getenv("ANDROID_BUILD_TOP");
+  if (android_top)
+    {
+      /* Android platform prebuilt python is at
+       * prebuilts/python/{linux,darwin}-x86/2.7.5
+       * Only 64-bit version is available so we use the hardcoded -x86 hostarch.
+       */
+      temp = concat(android_top, slash_string,
+                    "prebuilts", slash_string,
+                    "python", slash_string,
+                    host_name_string, "-x86", slash_string,
+                    pyver_string, binexesuffix, NULL);
+      if (debug_this) fprintf(stderr, "platform path is %s\n", temp);
+      if (!OS_STAT(temp, &buf))
+	*python_executable = temp;
+      else
+	free(temp);
+    }
+
   if (*python_executable && strstr(*python_executable,binexesuffix) != NULL)
     {
       *pythonhome = xstrdup(*python_executable);
