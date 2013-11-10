@@ -3585,7 +3585,7 @@ elf64_alpha_relax_tls_get_addr (struct alpha_relax_info *info, bfd_vma symval,
   use_gottprel = FALSE;
   new_symndx = is_gd ? ELF64_R_SYM (irel->r_info) : STN_UNDEF;
 
-  switch (!dynamic && !info->link_info->shared)
+  switch ((int)(!dynamic && !info->link_info->shared))
     {
     case 1:
       {
