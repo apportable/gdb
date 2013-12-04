@@ -246,6 +246,7 @@ using either the Apple/NeXT or the GNU Objective-C runtime.
 
 @menu
 * Free Software::               Freely redistributable software
+* Free Documentation::          Free Software Needs Free Documentation
 * Contributors::                Contributors to GDB
 @end menu
 
@@ -265,6 +266,7 @@ Fundamentally, the General Public License is a license which says that
 you have these freedoms and that you cannot take these freedoms away
 from anyone else.
 
+@node Free Documentation
 @unnumberedsec Free Software Needs Free Documentation
 
 The biggest deficiency in the free software community today is not in
@@ -4810,7 +4812,7 @@ invocations have returned.
 
 
 @kindex advance @var{location}
-@itemx advance @var{location}
+@item advance @var{location}
 Continue running the program up to the given @var{location}.  An argument is
 required, which should be of one of the forms described in
 @ref{Specify Location}.
@@ -5600,7 +5602,7 @@ function invocation, you end up at the beginning.
 @kindex set exec-direction
 @item set exec-direction
 Set the direction of target execution.
-@itemx set exec-direction reverse
+@item set exec-direction reverse
 @cindex execute forward or backward in time
 @value{GDBN} will perform all execution commands in reverse, until the
 exec-direction mode is changed to ``forward''.  Affected commands include
@@ -18207,8 +18209,8 @@ acceptable commands.
 * MicroBlaze::			Xilinx MicroBlaze
 * MIPS Embedded::               MIPS Embedded
 * OpenRISC 1000::               OpenRisc 1000
-* PA::                          HP PA Embedded
 * PowerPC Embedded::            PowerPC Embedded
+* PA::                          HP PA Embedded
 * Sparclet::                    Tsqware Sparclet
 * Sparclite::                   Fujitsu Sparclite
 * Z8000::                       Zilog Z8000
@@ -37157,7 +37159,7 @@ of blocks.
 @printindex cp
 
 @tex
-% I think something like @colophon should be in texinfo.  In the
+% I think something like @@colophon should be in texinfo.  In the
 % meantime:
 \long\def\colophon{\hbox to0pt{}\vfill
 \centerline{The body of this manual is set in}
@@ -37169,7 +37171,7 @@ of blocks.
 \centerline{{\sl\fontname\tensl\/}}
 \centerline{are used for emphasis.}\vfill}
 \page\colophon
-% Blame: doc@cygnus.com, 1991.
+% Blame: doc@@cygnus.com, 1991.
 @end tex
 
 @bye
