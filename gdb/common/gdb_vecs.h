@@ -1,5 +1,6 @@
-/* Compatibility routines for Windows CE.
-   Copyright (C) 2007-2013 Free Software Foundation, Inc.
+/* Some commonly-used VEC types.
+
+   Copyright (C) 2012-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -16,15 +17,26 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef WINCECOMPAT_H
-#define WINCECOMPAT_H
+#ifndef GDB_VECS_H
+#define GDB_VECS_H
 
-#include <windows.h>
+#include "vec.h"
 
-#define errno (GetLastError ())
+typedef char *char_ptr;
+typedef const char *const_char_ptr;
 
-/* in win32-low.c */
-extern char * strwinerror (DWORD error);
-#define strerror strwinerror
+DEF_VEC_P (char_ptr);
 
-#endif
+DEF_VEC_P (const_char_ptr);
+
+extern void free_char_ptr_vec (VEC (char_ptr) *char_ptr_vec);
+
+extern struct cleanup *
+  make_cleanup_free_char_ptr_vec (VEC (char_ptr) *char_ptr_vec);
+
+extern void dirnames_to_char_ptr_vec_append (VEC (char_ptr) **vecp,
+					     const char *dirnames);
+
+extern VEC (char_ptr) *dirnames_to_char_ptr_vec (const char *dirnames);
+
+#endif /* GDB_VECS_H */

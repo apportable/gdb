@@ -1,5 +1,5 @@
 /* Inferior process information for the remote server for GDB.
-   Copyright (C) 2002, 2005, 2007-2012 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
 
    Contributed by MontaVista Software.
 
@@ -161,6 +161,9 @@ free_one_thread (struct inferior_list_entry *inf)
 void
 remove_thread (struct thread_info *thread)
 {
+  if (thread->btrace != NULL)
+    target_disable_btrace (thread->btrace);
+
   remove_inferior (&all_threads, (struct inferior_list_entry *) thread);
   free_one_thread (&thread->entry);
 }

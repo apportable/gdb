@@ -1,6 +1,5 @@
 /* GNU/Linux/MIPS specific low level interface, for the remote server for GDB.
-   Copyright (C) 1995-1996, 1998-2002, 2005-2012 Free Software
-   Foundation, Inc.
+   Copyright (C) 1995-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -123,7 +122,7 @@ mips_arch_setup (void)
     {
       int pid = lwpid_of (get_thread_lwp (current_inferior));
 
-      ptrace (PTRACE_PEEKUSER, pid, DSP_CONTROL, 0);
+      ptrace (PTRACE_PEEKUSER, pid, (PTRACE_ARG3_TYPE)DSP_CONTROL, 0);
       switch (errno)
 	{
 	case 0:

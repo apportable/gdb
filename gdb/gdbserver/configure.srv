@@ -42,8 +42,22 @@ srv_amd64_linux_xmlfiles="i386/amd64-linux.xml i386/amd64-avx-linux.xml i386/64b
 # Input is taken from the "${target}" variable.
 
 case "${target}" in
-  arm*-*-linux*|arm*-*android*)
-			srv_regobj="reg-arm.o arm-with-iwmmxt.o"
+  aarch64*-*-linux*)
+			srv_regobj="aarch64.o aarch64-without-fpu.o"
+			srv_tgtobj="linux-aarch64-low.o"
+			srv_tgtobj="${srv_tgtobj} linux-low.o"
+			srv_tgtobj="${srv_tgtobj} linux-osdata.o"
+			srv_tgtobj="${srv_tgtobj} linux-procfs.o"
+			srv_tgtobj="${srv_tgtobj} linux-ptrace.o"
+			srv_xmlfiles="aarch64.xml"
+			srv_xmlfiles="${srv_xmlfiles} aarch64-core.xml"
+			srv_xmlfiles="${srv_xmlfiles} aarch64-fpu.xml"
+			srv_xmlfiles="${srv_xmlfiles} aarch64-without-fpu.xml"
+			srv_linux_usrregs=yes
+			srv_linux_regsets=yes
+			srv_linux_thread_db=yes
+			;;
+  arm*-*-linux*)	srv_regobj="reg-arm.o arm-with-iwmmxt.o"
 			srv_regobj="${srv_regobj} arm-with-vfpv2.o"
 			srv_regobj="${srv_regobj} arm-with-vfpv3.o"
 			srv_regobj="${srv_regobj} arm-with-neon.o"
@@ -98,14 +112,18 @@ case "${target}" in
 			    srv_xmlfiles="${srv_xmlfiles} $srv_amd64_linux_xmlfiles"
 			fi
 			srv_tgtobj="linux-low.o linux-osdata.o linux-x86-low.o i386-low.o i387-fp.o linux-procfs.o"
-			srv_tgtobj="${srv_tgtobj} linux-ptrace.o"
+			srv_tgtobj="${srv_tgtobj} linux-ptrace.o linux-btrace.o"
 			srv_linux_usrregs=yes
 			srv_linux_regsets=yes
 			srv_linux_thread_db=yes
+			srv_linux_btrace=yes
 			ipa_obj="${ipa_i386_linux_regobj} linux-i386-ipa.o"
 			;;
   i[34567]86-*-lynxos*)	srv_regobj="i386.o"
 			srv_tgtobj="lynx-low.o lynx-i386-low.o"
+			srv_xmlfiles="i386/i386.xml"
+			srv_xmlfiles="${srv_xmlfiles} i386/32bit-core.xml"
+			srv_xmlfiles="${srv_xmlfiles} i386/32bit-sse.xml"
 			srv_lynxos=yes
 			;;
   i[34567]86-*-mingw32ce*)
@@ -230,6 +248,9 @@ case "${target}" in
 			;;
   powerpc-*-lynxos*)	srv_regobj="powerpc-32.o"
 			srv_tgtobj="lynx-low.o lynx-ppc-low.o"
+			srv_xmlfiles="rs6000/powerpc-32.xml"
+			srv_xmlfiles="${srv_xmlfiles} rs6000/power-core.xml"
+			srv_xmlfiles="${srv_xmlfiles} rs6000/power-fpu.xml"
 			srv_lynxos=yes
 			;;
   s390*-*-linux*)	srv_regobj="s390-linux32.o"
@@ -294,17 +315,22 @@ case "${target}" in
 			;;
   x86_64-*-linux*)	srv_regobj="$srv_amd64_linux_regobj $srv_i386_linux_regobj"
 			srv_tgtobj="linux-low.o linux-osdata.o linux-x86-low.o i386-low.o i387-fp.o linux-procfs.o"
-			srv_tgtobj="${srv_tgtobj} linux-ptrace.o"
+			srv_tgtobj="${srv_tgtobj} linux-ptrace.o linux-btrace.o"
 			srv_xmlfiles="$srv_i386_linux_xmlfiles $srv_amd64_linux_xmlfiles"
 			srv_linux_usrregs=yes # This is for i386 progs.
 			srv_linux_regsets=yes
 			srv_linux_thread_db=yes
+			srv_linux_btrace=yes
 			ipa_obj="${ipa_amd64_linux_regobj} linux-amd64-ipa.o"
 			;;
   x86_64-*-mingw*)	srv_regobj="$srv_amd64_regobj"
 			srv_tgtobj="i386-low.o i387-fp.o win32-low.o win32-i386-low.o"
 			srv_xmlfiles="$srv_i386_xmlfiles $srv_amd64_xmlfiles"
 			srv_mingw=yes
+			;;
+  x86_64-*-cygwin*)	srv_regobj="$srv_amd64_regobj"
+			srv_tgtobj="i386-low.o i387-fp.o win32-low.o win32-i386-low.o"
+			srv_xmlfiles="$srv_i386_xmlfiles"
 			;;
 
   xtensa*-*-linux*)	srv_regobj=reg-xtensa.o
@@ -313,6 +339,7 @@ case "${target}" in
 			srv_linux_regsets=yes
 			;;
   tilegx-*-linux*)	srv_regobj=reg-tilegx.o
+			srv_regobj="${srv_regobj} reg-tilegx32.o"
 			srv_tgtobj="linux-low.o linux-tile-low.o linux-osdata.o linux-procfs.o"
 			srv_tgtobj="${srv_tgtobj} linux-ptrace.o"
 			srv_linux_regsets=yes

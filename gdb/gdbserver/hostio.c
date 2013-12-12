@@ -1,5 +1,5 @@
 /* Host file transfer support for gdbserver.
-   Copyright (C) 2007-2012 Free Software Foundation, Inc.
+   Copyright (C) 2007-2013 Free Software Foundation, Inc.
 
    Contributed by CodeSourcery.
 
@@ -483,7 +483,7 @@ handle_readlink (char *own_buf, int *new_packet_len)
       return;
     }
 
-  ret = readlink (filename, linkname, sizeof linkname);
+  ret = readlink (filename, linkname, sizeof (linkname) - 1);
   if (ret == -1)
     {
       hostio_error (own_buf);

@@ -1,6 +1,6 @@
 /* Debug register code for the i386.
 
-   Copyright (C) 2009-2012 Free Software Foundation, Inc.
+   Copyright (C) 2009-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -410,6 +410,7 @@ Invalid value %d of operation in i386_handle_nonaligned_watchpoint.\n",
   return retval;
 }
 
+#define Z_PACKET_HW_BP '1'
 #define Z_PACKET_WRITE_WP '2'
 #define Z_PACKET_READ_WP '3'
 #define Z_PACKET_ACCESS_WP '4'
@@ -421,6 +422,8 @@ Z_packet_to_hw_type (char type)
 {
   switch (type)
     {
+    case Z_PACKET_HW_BP:
+      return hw_execute;
     case Z_PACKET_WRITE_WP:
       return hw_write;
     case Z_PACKET_READ_WP:

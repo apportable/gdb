@@ -1,5 +1,5 @@
-/* Compatibility routines for Windows CE.
-   Copyright (C) 2007-2013 Free Software Foundation, Inc.
+/* Basic host-specific definitions for GDB.
+   Copyright (C) 1986-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -16,15 +16,25 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef WINCECOMPAT_H
-#define WINCECOMPAT_H
+#ifndef HOST_DEFS_H
+#define HOST_DEFS_H
 
-#include <windows.h>
-
-#define errno (GetLastError ())
-
-/* in win32-low.c */
-extern char * strwinerror (DWORD error);
-#define strerror strwinerror
-
+#ifdef __MSDOS__
+# define CANT_FORK
+# define GLOBAL_CURDIR
+# define DIRNAME_SEPARATOR ';'
 #endif
+
+#if !defined (__CYGWIN__) && defined (_WIN32)
+# define DIRNAME_SEPARATOR ';'
+#endif
+
+#ifndef DIRNAME_SEPARATOR
+#define DIRNAME_SEPARATOR ':'
+#endif
+
+#ifndef SLASH_STRING
+#define SLASH_STRING "/"
+#endif
+
+#endif /* HOST_DEFS_H */
