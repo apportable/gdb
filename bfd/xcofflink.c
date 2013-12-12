@@ -6257,7 +6257,7 @@ _bfd_xcoff_bfd_final_link (bfd *abfd, struct bfd_link_info *info)
       struct internal_reloc *irelend;
       struct xcoff_link_hash_entry **rel_hash;
       struct xcoff_toc_rel_hash *toc_rel_hash;
-      bfd_byte *erel;
+      bfd_byte *erel = NULL;
       bfd_size_type rel_size;
 
       /* A stripped file has no relocs.  */

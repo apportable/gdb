@@ -1741,7 +1741,7 @@ microblaze_elf_relax_section (bfd *abfd,
       for (isym = isymbuf; isym < isymend; isym++)
         {
           if (isym->st_shndx == shndx)
-	    isym->st_value =- calc_fixup (isym->st_value, sec);
+	    isym->st_value = - calc_fixup (isym->st_value, sec);
         }
 
       /* Now adjust the global symbols defined in this section.  */

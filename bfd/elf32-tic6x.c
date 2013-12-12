@@ -3319,8 +3319,8 @@ elf32_tic6x_size_dynamic_sections (bfd *output_bfd, struct bfd_link_info *info)
     {
       bfd_signed_vma *local_got;
       bfd_signed_vma *end_local_got;
-      char *local_tls_type;
-      bfd_vma *local_tlsdesc_gotent;
+      char *local_tls_type = NULL;
+      bfd_vma *local_tlsdesc_gotent = NULL;
       bfd_size_type locsymcount;
       Elf_Internal_Shdr *symtab_hdr;
       asection *srel;

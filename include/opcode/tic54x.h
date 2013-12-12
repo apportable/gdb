@@ -158,6 +158,6 @@ extern const symbol cc3_codes[];
 extern const char *misc_symbols[];
 struct disassemble_info;
 extern const insn_template* tic54x_get_insn (struct disassemble_info *, 
-                                        bfd_vma, unsigned short, int *);
+                                        bfd_vma, int, int *);
 
 #endif /* _opcode_tic54x_h_ */

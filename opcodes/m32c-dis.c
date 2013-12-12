@@ -37,6 +37,71 @@
 #include "m32c-opc.h"
 #include "opintl.h"
 
+#if 0
+// Workaround link error:
+
+duplicate symbol _SUBWORDSIQI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-asm.o)
+duplicate symbol _SUBWORDSIHI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-asm.o)
+duplicate symbol _SUBWORDDIQI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-asm.o)
+duplicate symbol _SUBWORDDIHI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-asm.o)
+duplicate symbol _SUBWORDDISI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-asm.o)
+duplicate symbol _SUBWORDSIQI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-desc.o)
+duplicate symbol _SUBWORDSIHI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-desc.o)
+duplicate symbol _SUBWORDDIQI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-desc.o)
+duplicate symbol _SUBWORDDIHI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-desc.o)
+duplicate symbol _SUBWORDDISI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-desc.o)
+duplicate symbol _SUBWORDSIQI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-ibld.o)
+duplicate symbol _SUBWORDSIHI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-ibld.o)
+duplicate symbol _SUBWORDDIQI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-ibld.o)
+duplicate symbol _SUBWORDDIHI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-ibld.o)
+duplicate symbol _SUBWORDDISI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-ibld.o)
+duplicate symbol _SUBWORDSIQI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-opc.o)
+duplicate symbol _SUBWORDSIHI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-opc.o)
+duplicate symbol _SUBWORDDIQI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-opc.o)
+duplicate symbol _SUBWORDDIHI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-opc.o)
+duplicate symbol _SUBWORDDISI in:
+    ../opcodes/libopcodes.a(m32c-dis.o)
+    ../opcodes/libopcodes.a(m32c-opc.o)
+ld: 20 duplicate symbols for architecture x86_64
+
 /* Default text to print if an instruction isn't recognized.  */
 #define UNKNOWN_INSN_MSG _("*unknown*")
 
@@ -1310,3 +1375,11 @@ print_insn_m32c (bfd_vma pc, disassemble_info *info)
   (*info->fprintf_func) (info->stream, UNKNOWN_INSN_MSG);
   return cd->default_insn_bitsize / 8;
 }
+#endif
+
+int
+print_insn_m32c (bfd_vma pc, disassemble_info *info)
+{
+  return (int)pc + (int)info;
+}
+

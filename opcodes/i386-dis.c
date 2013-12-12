@@ -11991,7 +11991,7 @@ dofloat (int sizeflag)
 static void
 OP_ST (int bytemode ATTRIBUTE_UNUSED, int sizeflag ATTRIBUTE_UNUSED)
 {
-  oappend ("%st" + intel_syntax);
+  oappend ((const char *)((unsigned long long)"%st" + intel_syntax));
 }
 
 static void
@@ -12520,32 +12520,32 @@ append_seg (void)
   if (prefixes & PREFIX_CS)
     {
       used_prefixes |= PREFIX_CS;
-      oappend ("%cs:" + intel_syntax);
+      oappend ((const char *)((unsigned long long)"%cs:" + intel_syntax));
     }
   if (prefixes & PREFIX_DS)
     {
       used_prefixes |= PREFIX_DS;
-      oappend ("%ds:" + intel_syntax);
+      oappend ((const char *)((unsigned long long)"%ds:" + intel_syntax));
     }
   if (prefixes & PREFIX_SS)
     {
       used_prefixes |= PREFIX_SS;
-      oappend ("%ss:" + intel_syntax);
+      oappend ((const char *)((unsigned long long)"%ss:" + intel_syntax));
     }
   if (prefixes & PREFIX_ES)
     {
       used_prefixes |= PREFIX_ES;
-      oappend ("%es:" + intel_syntax);
+      oappend ((const char *)((unsigned long long)"%es:" + intel_syntax));
     }
   if (prefixes & PREFIX_FS)
     {
       used_prefixes |= PREFIX_FS;
-      oappend ("%fs:" + intel_syntax);
+      oappend ((const char *)((unsigned long long)"%fs:" + intel_syntax));
     }
   if (prefixes & PREFIX_GS)
     {
       used_prefixes |= PREFIX_GS;
-      oappend ("%gs:" + intel_syntax);
+      oappend ((const char *)((unsigned long long)"%gs:" + intel_syntax));
     }
 }
 
@@ -13876,7 +13876,7 @@ OP_ESreg (int code, int sizeflag)
 	  intel_operand_size (b_mode, sizeflag);
 	}
     }
-  oappend ("%es:" + intel_syntax);
+  oappend ((const char *)((unsigned long long)"%es:" + intel_syntax));
   ptr_reg (code, sizeflag);
 }
 

@@ -2944,7 +2944,7 @@ v850_elf_relax_section (bfd *abfd,
 						toaddr, align_pad_size))
 		goto error_return;
 
-	      for (i  = BFD_ALIGN (toaddr - align_pad_size, 1);
+	      for (i  = (unsigned int)BFD_ALIGN (toaddr - align_pad_size, 1);
 		   (i + 1) < toaddr; i += 2)
 		bfd_put_16 (abfd, NOP_OPCODE, contents + i);
 

@@ -6075,7 +6075,7 @@ clear_section_cache (section_cache_t *sec_cache)
       release_internal_relocs (sec_cache->sec, sec_cache->relocs);
       if (sec_cache->ptbl)
 	free (sec_cache->ptbl);
-      memset (sec_cache, 0, sizeof (sec_cache));
+      memset (sec_cache, 0, sizeof (*sec_cache));
     }
 }
 
@@ -6117,7 +6117,7 @@ section_cache_section (section_cache_t *sec_cache,
 
   /* Fill in the new section cache.  */
   clear_section_cache (sec_cache);
-  memset (sec_cache, 0, sizeof (sec_cache));
+  memset (sec_cache, 0, sizeof (*sec_cache));
 
   sec_cache->sec = sec;
   sec_cache->contents = contents;

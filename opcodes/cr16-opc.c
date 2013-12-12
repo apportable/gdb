@@ -460,7 +460,7 @@ const unsigned int cr16_num_opcodes = ARRAY_SIZE (cr16_instruction);
       REG(u4, 0x84, CR16_U_REGTYPE)
    is interpreted as :
       {"u4",  u4, 0x84, CR16_U_REGTYPE}  */
-#define REG(NAME, N, TYPE)    {STRINGX(NAME), {NAME}, N, TYPE}
+#define REG(NAME, N, TYPE)    {STRINGX(NAME), {(reg)NAME}, N, TYPE}
 
 #define REGP(NAME, BNAME, N, TYPE)    {STRINGX(NAME), {BNAME}, N, TYPE}
 
