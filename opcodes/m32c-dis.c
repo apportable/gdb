@@ -1380,6 +1380,7 @@ print_insn_m32c (bfd_vma pc, disassemble_info *info)
 int
 print_insn_m32c (bfd_vma pc, disassemble_info *info)
 {
-  return (int)pc + (int)info;
+  printf("should never print this %lx %x", pc, (unsigned)info);
+  return 0;
 }
 
