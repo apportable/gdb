@@ -1,5 +1,6 @@
 /* Target operations for the remote server for GDB.
-   Copyright (C) 2002-2013 Free Software Foundation, Inc.
+   Copyright (C) 2002, 2004-2005, 2007-2012 Free Software Foundation,
+   Inc.
 
    Contributed by MontaVista Software.
 
@@ -180,12 +181,4 @@ target_waitstatus_to_string (const struct target_waitstatus *ws)
     }
 
   return buf;
-}
-
-int
-kill_inferior (int pid)
-{
-  gdb_agent_about_to_close (pid);
-
-  return (*the_target->kill) (pid);
 }

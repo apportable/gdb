@@ -1,5 +1,6 @@
 /* Memory breakpoint operations for the remote server for GDB.
-   Copyright (C) 2002-2013 Free Software Foundation, Inc.
+   Copyright (C) 2002-2003, 2005, 2007-2012 Free Software Foundation,
+   Inc.
 
    Contributed by MontaVista Software.
 
@@ -840,7 +841,8 @@ gdb_condition_true_at_breakpoint (CORE_ADDR where)
   ULONGEST value = 0;
   struct point_cond_list *cl;
   int err = 0;
-  struct eval_agent_expr_context ctx;
+
+  struct regcache *regcache = get_thread_regcache (current_inferior, 1);
 
   if (bp == NULL)
     return 0;
@@ -849,10 +851,6 @@ gdb_condition_true_at_breakpoint (CORE_ADDR where)
      the condition always evaluates to TRUE.  */
   if (bp->cond_list == NULL)
     return 1;
-
-  ctx.regcache = get_thread_regcache (current_inferior, 1);
-  ctx.tframe = NULL;
-  ctx.tpoint = NULL;
 
   /* Evaluate each condition in the breakpoint's list of conditions.
      Return true if any of the conditions evaluates to TRUE.
@@ -863,7 +861,7 @@ gdb_condition_true_at_breakpoint (CORE_ADDR where)
        cl && !value && !err; cl = cl->next)
     {
       /* Evaluate the condition.  */
-      err = gdb_eval_agent_expr (&ctx, cl->cond, &value);
+      err = gdb_eval_agent_expr (regcache, NULL, cl->cond, &value);
     }
 
   if (err)
@@ -946,20 +944,17 @@ run_breakpoint_commands (CORE_ADDR where)
   ULONGEST value = 0;
   struct point_command_list *cl;
   int err = 0;
-  struct eval_agent_expr_context ctx;
+
+  struct regcache *regcache = get_thread_regcache (current_inferior, 1);
 
   if (bp == NULL)
     return;
-
-  ctx.regcache = get_thread_regcache (current_inferior, 1);
-  ctx.tframe = NULL;
-  ctx.tpoint = NULL;
 
   for (cl = bp->command_list;
        cl && !value && !err; cl = cl->next)
     {
       /* Run the command.  */
-      err = gdb_eval_agent_expr (&ctx, cl->cmd, &value);
+      err = gdb_eval_agent_expr (regcache, NULL, cl->cmd, &value);
 
       /* If one command has a problem, stop digging the hole deeper.  */
       if (err)

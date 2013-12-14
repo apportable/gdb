@@ -1,5 +1,5 @@
 /* Data structures and functions associated with agent expressions in GDB.
-   Copyright (C) 2009-2013 Free Software Foundation, Inc.
+   Copyright (C) 2009-2012 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -67,20 +67,8 @@ void emit_epilogue (void);
 enum eval_result_type compile_bytecodes (struct agent_expr *aexpr);
 #endif
 
-/* The context when evaluating agent expression.  */
-
-struct eval_agent_expr_context
-{
-  /* The registers when evaluating agent expression.  */
-  struct regcache *regcache;
-  /* The traceframe, if any, when evaluating agent expression.  */
-  struct traceframe *tframe;
-  /* The tracepoint, if any, when evaluating agent expression.  */
-  struct tracepoint *tpoint;
-};
-
-enum eval_result_type
-  gdb_eval_agent_expr (struct eval_agent_expr_context *ctx,
-		       struct agent_expr *aexpr,
-		       ULONGEST *rslt);
+enum eval_result_type gdb_eval_agent_expr (struct regcache *regcache,
+					   struct traceframe *tframe,
+					   struct agent_expr *aexpr,
+					   ULONGEST *rslt);
 #endif /* AX_H */

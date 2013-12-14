@@ -1,5 +1,6 @@
 /* Multi-thread control defs for remote server for GDB.
-   Copyright (C) 1993-2013 Free Software Foundation, Inc.
+   Copyright (C) 1993, 1995, 1997-2000, 2002-2012 Free Software
+   Foundation, Inc.
 
    This file is part of GDB.
 
@@ -20,8 +21,6 @@
 #define GDB_THREAD_H
 
 #include "server.h"
-
-struct btrace_target_info;
 
 struct thread_info
 {
@@ -59,9 +58,6 @@ struct thread_info
    Each item in the list holds the current step of the while-stepping
    action.  */
   struct wstep_state *while_stepping;
-
-  /* Branch trace target information for this thread.  */
-  struct btrace_target_info *btrace;
 };
 
 extern struct inferior_list all_threads;
@@ -72,6 +68,4 @@ void add_thread (ptid_t ptid, void *target_data);
 struct thread_info *find_thread_ptid (ptid_t ptid);
 struct thread_info *gdb_id_to_thread (unsigned int);
 
-/* Get current thread ID (Linux task ID).  */
-#define current_ptid ((struct inferior_list_entry *) current_inferior)->id
 #endif /* GDB_THREAD_H */

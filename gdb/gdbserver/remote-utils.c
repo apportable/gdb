@@ -1,5 +1,5 @@
 /* Remote utility routines for the remote server for GDB.
-   Copyright (C) 1986-2013 Free Software Foundation, Inc.
+   Copyright (C) 1986, 1989, 1993-2012 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -56,7 +56,7 @@
 #if HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
-#include "gdb_stat.h"
+#include <sys/stat.h>
 #if HAVE_ERRNO_H
 #include <errno.h>
 #endif
@@ -65,15 +65,9 @@
 #include <winsock2.h>
 #endif
 
-/* ANDROID BEGIN */
-/* Need to hack configure to include sys/socket.h by default during testing
- * otherwise the test will fail because sa_family_t is undefined, hence the
- * HAVE_SYS_UN_H macro.
- */
 #ifdef HAVE_SYS_UN_H
 #include <sys/un.h>
 #endif
-/* ANDROID END */
 
 #if __QNX__
 #include <sys/iomgr.h>
@@ -299,14 +293,31 @@ remote_prepare (char *name)
 void
 remote_open (char *name)
 {
-/* ANDROID BEGIN */
-/* Special protocol used by NDK debugging */
-#ifdef HAVE_SYS_UN_H
-  if (name[0] == '+')
-    {
+  char *port_str;
+
+  port_str = strchr (name, ':');
 #ifdef USE_WIN32API
-      error ("Only <host>:<port> is supported on this platform.");
-#else
+  if (port_str == NULL)
+    error ("Only <host>:<port> is supported on this platform.");
+#endif
+
+  if (strcmp (name, STDIO_CONNECTION_NAME) == 0)
+    {
+      fprintf (stderr, "Remote debugging using stdio\n");
+
+      /* Use stdin as the handle of the connection.
+	 We only select on reads, for example.  */
+      remote_desc = fileno (stdin);
+
+      enable_async_notification (remote_desc);
+
+      /* Register the event loop handler.  */
+      add_file_handler (remote_desc, handle_serial_event, NULL);
+    }
+#ifndef USE_WIN32API
+#ifdef HAVE_SYS_UN_H
+  else if (name[0] == '+')
+    {
       struct sockaddr_un sockaddr;
       socklen_t sockaddrlen;
 
@@ -334,34 +345,8 @@ remote_open (char *name)
       add_file_handler (listen_desc, handle_accept_event, NULL);
 
       transport_is_reliable = 1;
-#endif
     }
-  else
 #endif /* HAVE_SYS_UN_H */
-/* ANDROID END */
-  {
-  char *port_str;
-
-  port_str = strchr (name, ':');
-#ifdef USE_WIN32API
-  if (port_str == NULL)
-    error ("Only <host>:<port> is supported on this platform.");
-#endif
-
-  if (strcmp (name, STDIO_CONNECTION_NAME) == 0)
-    {
-      fprintf (stderr, "Remote debugging using stdio\n");
-
-      /* Use stdin as the handle of the connection.
-	 We only select on reads, for example.  */
-      remote_desc = fileno (stdin);
-
-      enable_async_notification (remote_desc);
-
-      /* Register the event loop handler.  */
-      add_file_handler (remote_desc, handle_serial_event, NULL);
-    }
-#ifndef USE_WIN32API
   else if (port_str == NULL)
     {
       struct stat statbuf;
@@ -449,7 +434,6 @@ remote_open (char *name)
       /* Register the event loop handler.  */
       add_file_handler (listen_desc, handle_accept_event, NULL);
     }
-  }
 }
 
 void
@@ -813,7 +797,7 @@ read_ptid (char *buf, char **obuf)
 
   /* Since the stub is not sending a process id, then default to
      what's in the current inferior.  */
-  pid = ptid_get_pid (current_ptid);
+  pid = ptid_get_pid (((struct inferior_list_entry *) current_inferior)->id);
 
   if (obuf)
     *obuf = pp;

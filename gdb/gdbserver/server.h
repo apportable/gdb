@@ -1,5 +1,6 @@
 /* Common definitions for remote server for GDB.
-   Copyright (C) 1993-2013 Free Software Foundation, Inc.
+   Copyright (C) 1993, 1995, 1997-2000, 2002-2012 Free Software
+   Foundation, Inc.
 
    This file is part of GDB.
 
@@ -20,14 +21,10 @@
 #define SERVER_H
 
 #include "config.h"
-#include "build-gnulib-gdbserver/config.h"
 
 #ifdef __MINGW32CE__
 #include "wincecompat.h"
 #endif
-
-#include "libiberty.h"
-#include "ansidecl.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -67,6 +64,32 @@ extern int vasprintf(char **strp, const char *fmt, va_list ap);
 #endif
 #if !HAVE_DECL_VSNPRINTF
 int vsnprintf(char *str, size_t size, const char *format, va_list ap);
+#endif
+
+#ifndef ATTR_NORETURN
+#if defined(__GNUC__) && (__GNUC__ > 2 \
+			  || (__GNUC__ == 2 && __GNUC_MINOR__ >= 7))
+#define ATTR_NORETURN __attribute__ ((noreturn))
+#else
+#define ATTR_NORETURN           /* nothing */
+#endif
+#endif
+
+#ifndef ATTR_FORMAT
+#if defined(__GNUC__) && (__GNUC__ > 2 \
+			  || (__GNUC__ == 2 && __GNUC_MINOR__ >= 4))
+#define ATTR_FORMAT(type, x, y) __attribute__ ((format(type, x, y)))
+#else
+#define ATTR_FORMAT(type, x, y) /* nothing */
+#endif
+#endif
+
+#ifndef ATTR_MALLOC
+#if defined(__GNUC__) && (__GNUC__ >= 3)
+#define ATTR_MALLOC __attribute__ ((__malloc__))
+#else
+#define ATTR_MALLOC             /* nothing */
+#endif
 #endif
 
 /* Define underscore macro, if not available, to be able to use it inside
@@ -239,6 +262,10 @@ extern int non_stop;
 
 extern int disable_randomization;
 
+#ifdef __ANDROID__
+extern int ignore_ondemand;
+#endif
+
 #if USE_WIN32API
 #include <winsock2.h>
 typedef SOCKET gdb_fildes_t;
@@ -259,11 +286,12 @@ extern int append_callback_event (callback_handler_func *proc,
 extern void delete_callback_event (int id);
 
 extern void start_event_loop (void);
-extern void initialize_event_loop (void);
 
 /* Functions from server.c.  */
 extern int handle_serial_event (int err, gdb_client_data client_data);
 extern int handle_target_event (int err, gdb_client_data client_data);
+
+extern void push_event (ptid_t ptid, struct target_waitstatus *status);
 
 /* Functions from hostio.c.  */
 extern int handle_vFile (char *, int, int *);
@@ -339,10 +367,17 @@ void monitor_output (const char *msg);
 /* Functions from utils.c */
 #include "common-utils.h"
 
+void *xmalloc (size_t) ATTR_MALLOC;
+void *xrealloc (void *, size_t);
+void *xcalloc (size_t, size_t) ATTR_MALLOC;
+char *xstrdup (const char *) ATTR_MALLOC;
+int xsnprintf (char *str, size_t size, const char *format, ...)
+  ATTR_FORMAT (printf, 3, 4);;
+void freeargv (char **argv);
 void perror_with_name (const char *string);
-void error (const char *string,...) ATTRIBUTE_NORETURN ATTRIBUTE_PRINTF (1, 2);
-void fatal (const char *string,...) ATTRIBUTE_NORETURN ATTRIBUTE_PRINTF (1, 2);
-void warning (const char *string,...) ATTRIBUTE_PRINTF (1, 2);
+void error (const char *string,...) ATTR_NORETURN ATTR_FORMAT (printf, 1, 2);
+void fatal (const char *string,...) ATTR_NORETURN ATTR_FORMAT (printf, 1, 2);
+void warning (const char *string,...) ATTR_FORMAT (printf, 1, 2);
 char *paddress (CORE_ADDR addr);
 char *pulongest (ULONGEST u);
 char *plongest (LONGEST l);
@@ -436,16 +471,14 @@ void stop_tracing (void);
 
 int claim_trampoline_space (ULONGEST used, CORE_ADDR *trampoline);
 int have_fast_tracepoint_trampoline_buffer (char *msgbuf);
-void gdb_agent_about_to_close (int pid);
 #endif
 
 struct traceframe;
-struct eval_agent_expr_context;
 
 /* Do memory copies for bytecodes.  */
 /* Do the recording of memory blocks for actions and bytecodes.  */
 
-int agent_mem_read (struct eval_agent_expr_context *ctx,
+int agent_mem_read (struct traceframe *tframe,
 		    unsigned char *to, CORE_ADDR from,
 		    ULONGEST len);
 
@@ -454,8 +487,8 @@ void agent_set_trace_state_variable_value (int num, LONGEST val);
 
 /* Record the value of a trace state variable.  */
 
-int agent_tsv_read (struct eval_agent_expr_context *ctx, int n);
-int agent_mem_read_string (struct eval_agent_expr_context *ctx,
+int agent_tsv_read (struct traceframe *tframe, int n);
+int agent_mem_read_string (struct traceframe *tframe,
 			   unsigned char *to,
 			   CORE_ADDR from,
 			   ULONGEST len);
@@ -522,8 +555,8 @@ CORE_ADDR get_get_tsv_func_addr (void);
    function in the IPA.  */
 CORE_ADDR get_set_tsv_func_addr (void);
 
-extern CORE_ADDR current_insn_ptr;
-extern int emit_error;
+CORE_ADDR current_insn_ptr;
+int emit_error;
 
 /* Version information, from version.c.  */
 extern const char version[];

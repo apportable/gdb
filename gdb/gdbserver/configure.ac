@@ -1,5 +1,5 @@
 dnl Autoconf configure script for GDB server.
-dnl Copyright (C) 2000-2013 Free Software Foundation, Inc.
+dnl Copyright (C) 2000, 2002-2012 Free Software Foundation, Inc.
 dnl
 dnl This file is part of GDB.
 dnl
@@ -25,9 +25,18 @@ AC_CONFIG_HEADER(config.h:config.in)
 
 AM_MAINTAINER_MODE
 
+AC_ARG_WITH([sysroot],
+  [AS_HELP_STRING([--with-sysroot=SYSROOT],
+                  [use sysroot as the system root during the build])],
+  [if test x"$withval" != x ; then
+     CFLAGS="$CFLAGS --sysroot=$withval"
+     CPPFLAGS="$CPPFLAGS --sysroot=$withval"
+     LDFLAGS="$LDFLAGS --sysroot=$withval"
+   fi],
+  [])
+
 AC_PROG_CC
 AC_GNU_SOURCE
-AC_SYS_LARGEFILE
 
 AC_CANONICAL_SYSTEM
 
@@ -41,20 +50,8 @@ AC_HEADER_DIRENT
 
 AC_FUNC_ALLOCA
 
-# Dependency checking.
-ZW_CREATE_DEPDIR
-ZW_PROG_COMPILER_DEPENDENCIES([CC])
-
 # Check for the 'make' the user wants to use.
 AC_CHECK_PROGS(MAKE, make)
-MAKE_IS_GNU=
-case "`$MAKE --version 2>&1 | sed 1q`" in
-  *GNU*)
-    MAKE_IS_GNU=yes
-    ;;
-esac
-AM_CONDITIONAL(GMAKE, test "$MAKE_IS_GNU" = yes)
-AC_PROG_MAKE_SET
 
 # Configure gnulib.  We can't use AC_CONFIG_SUBDIRS as that'd expect
 # to find the the source subdir to be configured directly under
@@ -68,8 +65,7 @@ AC_CHECK_HEADERS(sgtty.h termio.h termios.h sys/reg.h string.h dnl
 		 stdlib.h unistd.h dnl
 		 errno.h fcntl.h signal.h sys/file.h malloc.h dnl
 		 sys/ioctl.h netinet/in.h sys/socket.h netdb.h dnl
-		 netinet/tcp.h arpa/inet.h sys/wait.h wait.h sys/un.h dnl
-		 linux/perf_event.h)
+		 netinet/tcp.h arpa/inet.h sys/wait.h sys/un.h)
 AC_CHECK_FUNCS(pread pwrite pread64 readlink)
 AC_REPLACE_FUNCS(vasprintf vsnprintf)
 
@@ -140,7 +136,7 @@ if test "${ERROR_ON_WARNING}" = yes ; then
 fi
 
 build_warnings="-Wall -Wdeclaration-after-statement -Wpointer-arith \
--Wformat-nonliteral -Wno-char-subscripts -Wempty-body"
+-Wformat-nonliteral -Wno-char-subscripts"
 
 WARN_CFLAGS=""
 if test "x$GCC" = xyes
@@ -188,7 +184,7 @@ AC_TRY_LINK([
   [AC_MSG_RESULT(no)])
 fi
 
-AC_CHECK_DECLS([strerror, strstr, perror, vasprintf, vsnprintf])
+AC_CHECK_DECLS([strerror, perror, vasprintf, vsnprintf])
 
 AC_CHECK_TYPES(socklen_t, [], [],
 [#include <sys/types.h>
@@ -292,11 +288,6 @@ if test "${srv_linux_regsets}" = "yes"; then
   fi
 fi
 
-if test "${srv_linux_btrace}" = "yes"; then
-  AC_DEFINE(HAVE_LINUX_BTRACE, 1,
-	    [Define if the target supports branch tracing.])
-fi
-
 if test "$ac_cv_header_sys_procfs_h" = yes; then
   BFD_HAVE_SYS_PROCFS_TYPE(lwpid_t)
   BFD_HAVE_SYS_PROCFS_TYPE(psaddr_t)
@@ -314,11 +305,20 @@ if test "$bfd_cv_have_sys_procfs_type_psaddr_t" != yes; then
   GDBSERVER_HAVE_THREAD_DB_TYPE(psaddr_t)
 fi
 
-dnl Check for libdl, but do not add it to LIBS as only gdbserver
-dnl needs it (and gdbreplay doesn't).
-old_LIBS="$LIBS"
-AC_CHECK_LIB(dl, dlopen)
-LIBS="$old_LIBS"
+case "$target" in
+*android*)
+    srv_android_thread_db="yes"
+    thread_db_inc="-I$srcdir/../../android -fno-short-enums"
+    ;;
+*)
+    dnl Check for libdl, but do not add it to LIBS as only gdbserver
+    dnl needs it (and gdbreplay doesn't).
+    old_LIBS="$LIBS"
+    AC_CHECK_LIB(dl, dlopen)
+    LIBS="$old_LIBS"
+    ;;
+esac
+AC_SUBST(thread_db_inc)
 
 srv_thread_depfiles=
 srv_libs=
@@ -345,11 +345,15 @@ if test "$srv_linux_thread_db" = "yes"; then
     AC_SUBST(RDYNAMIC)
     LDFLAGS="$old_LDFLAGS"
     AC_MSG_RESULT($found)
-  else
+  elif test "$srv_android_thread_db" != "yes"; then
     srv_libs="-lthread_db"
   fi
 
   srv_thread_depfiles="thread-db.o proc-service.o"
+  if test "$srv_android_thread_db" = "yes"; then
+    srv_thread_depfiles="$srv_thread_depfiles libthread_db.o"
+  fi
+
   USE_THREAD_DB="-DUSE_THREAD_DB"
   AC_CACHE_CHECK([for TD_VERSION], gdbsrv_cv_have_td_version,
   [AC_TRY_COMPILE([#include <thread_db.h>], [TD_VERSION;],
@@ -366,7 +370,7 @@ AS_HELP_STRING([--with-libthread-db=PATH], [use given libthread_db directly]),
   srv_libs="$srv_libthread_db_path"
 ])
 
-if test "$srv_libs" != "" -a "$srv_libs" != "-ldl"; then
+if test "$srv_libs" != "" -a "$srv_libs" != "-ldl" -o "$srv_android_thread_db" = "yes"; then
   AC_DEFINE(USE_LIBTHREAD_DB_DIRECTLY, 1, [Define if we should use libthread_db directly.])
 fi
 

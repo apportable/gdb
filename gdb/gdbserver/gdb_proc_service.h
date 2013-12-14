@@ -1,5 +1,5 @@
 /* <proc_service.h> replacement for systems that don't have it.
-   Copyright (C) 2000-2013 Free Software Foundation, Inc.
+   Copyright (C) 2000, 2006-2012 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -49,12 +49,16 @@ typedef enum
   PS_NOFREGS			/* FPU register set not available.  */
 } ps_err_e;
 
+#ifndef __ANDROID__
 #ifndef HAVE_LWPID_T
 typedef unsigned int lwpid_t;
 #endif
+#endif
 
+#ifndef __ANDROID__
 #ifndef HAVE_PSADDR_T
 typedef void *psaddr_t;
+#endif
 #endif
 
 #ifndef HAVE_PRGREGSET_T

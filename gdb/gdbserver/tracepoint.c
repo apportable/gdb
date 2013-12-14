@@ -1,5 +1,5 @@
 /* Tracepoint code for remote server for GDB.
-   Copyright (C) 2009-2013 Free Software Foundation, Inc.
+   Copyright (C) 2009-2012 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -30,8 +30,6 @@
 
 #include "ax.h"
 
-#define DEFAULT_TRACE_BUFFER_SIZE 5242880 /* 5*1024*1024 */
-
 /* This file is built for both GDBserver, and the in-process
    agent (IPA), a shared library that includes a tracing agent that is
    loaded by the inferior to support fast tracepoints.  Fast
@@ -59,7 +57,7 @@
 
 */
 
-static void trace_vdebug (const char *, ...) ATTRIBUTE_PRINTF (1, 2);
+static void trace_vdebug (const char *, ...) ATTR_FORMAT (printf, 1, 2);
 
 static void
 trace_vdebug (const char *fmt, ...)
@@ -994,10 +992,6 @@ int current_traceframe = -1;
 static int circular_trace_buffer;
 #endif
 
-/* Size of the trace buffer.  */
-
-static LONGEST trace_buffer_size;
-
 /* Pointer to the block of memory that traceframes all go into.  */
 
 static unsigned char *trace_buffer_lo;
@@ -1352,6 +1346,12 @@ struct trap_tracepoint_ctx
 
 #endif
 
+static enum eval_result_type
+eval_tracepoint_agent_expr (struct tracepoint_hit_ctx *ctx,
+			    struct traceframe *tframe,
+			    struct agent_expr *aexpr,
+			    ULONGEST *rslt);
+
 #ifndef IN_PROCESS_AGENT
 static CORE_ADDR traceframe_get_pc (struct traceframe *tframe);
 static int traceframe_read_tsv (int num, LONGEST *val);
@@ -1484,13 +1484,9 @@ clear_inferior_trace_buffer (void)
 #endif
 
 static void
-init_trace_buffer (LONGEST bufsize)
+init_trace_buffer (unsigned char *buf, int bufsize)
 {
-  trace_buffer_size = bufsize;
-
-  /* If we already have a trace buffer, try realloc'ing.  */
-  trace_buffer_lo = xrealloc (trace_buffer_lo, bufsize);
-
+  trace_buffer_lo = buf;
   trace_buffer_hi = trace_buffer_lo + bufsize;
 
   clear_trace_buffer ();
@@ -1907,14 +1903,15 @@ find_next_tracepoint_by_number (struct tracepoint *prev_tp, int num)
 #endif
 
 static char *
-savestring (s)
-     const char *s;
+save_string (const char *str, size_t len)
 {
-  char *ret;
+  char *s;
 
-  ret = (char *)xmalloc (strlen (s) + 1);
-  strcpy (ret, s);
-  return ret;
+  s = xmalloc (len + 1);
+  memcpy (s, str, len);
+  s[len] = '\0';
+
+  return s;
 }
 
 /* Append another action to perform when the tracepoint triggers.  */
@@ -2037,7 +2034,7 @@ add_tracepoint_action (struct tracepoint *tpoint, char *packet)
 			 * tpoint->num_step_actions));
 	  tpoint->step_actions[tpoint->num_step_actions - 1] = action;
 	  tpoint->step_actions_str[tpoint->num_step_actions - 1]
-	    = savestring (act_start, act - act_start);
+	    = save_string (act_start, act - act_start);
 	}
       else
 	{
@@ -2050,7 +2047,7 @@ add_tracepoint_action (struct tracepoint *tpoint, char *packet)
 			sizeof (*tpoint->actions_str) * tpoint->numactions);
 	  tpoint->actions[tpoint->numactions - 1] = action;
 	  tpoint->actions_str[tpoint->numactions - 1]
-	    = savestring (act_start, act - act_start);
+	    = save_string (act_start, act - act_start);
 	}
     }
 }
@@ -2219,8 +2216,7 @@ add_traceframe (struct tracepoint *tpoint)
 /* Add a block to the traceframe currently being worked on.  */
 
 static unsigned char *
-add_traceframe_block (struct traceframe *tframe,
-		      struct tracepoint *tpoint, int amt)
+add_traceframe_block (struct traceframe *tframe, int amt)
 {
   unsigned char *block;
 
@@ -2232,10 +2228,7 @@ add_traceframe_block (struct traceframe *tframe,
   if (!block)
     return NULL;
 
-  gdb_assert (tframe->tpnum == tpoint->number);
-
   tframe->data_size += amt;
-  tpoint->traceframe_usage += amt;
 
   return block;
 }
@@ -3705,8 +3698,8 @@ cmd_qtp (char *own_buf)
 
 /* State variables to help return all the tracepoint bits.  */
 static struct tracepoint *cur_tpoint;
-static unsigned int cur_action;
-static unsigned int cur_step_action;
+static int cur_action;
+static int cur_step_action;
 static struct source_string *cur_source_string;
 static struct trace_state_variable *cur_tsv;
 
@@ -3780,7 +3773,7 @@ cmd_qtfp (char *packet)
   trace_debug ("Returning first tracepoint definition piece");
 
   cur_tpoint = tracepoints;
-  cur_action = cur_step_action = 0;
+  cur_action = cur_step_action = -1;
   cur_source_string = NULL;
 
   if (cur_tpoint)
@@ -3805,17 +3798,17 @@ cmd_qtsp (char *packet)
 	 GDB misbehavior.  */
       strcpy (packet, "l");
     }
-  else if (cur_action < cur_tpoint->numactions)
+  else if (cur_action < cur_tpoint->numactions - 1)
     {
+      ++cur_action;
       response_action (packet, cur_tpoint,
 		       cur_tpoint->actions_str[cur_action], 0);
-      ++cur_action;
     }
-  else if (cur_step_action < cur_tpoint->num_step_actions)
+  else if (cur_step_action < cur_tpoint->num_step_actions - 1)
     {
+      ++cur_step_action;
       response_action (packet, cur_tpoint,
 		       cur_tpoint->step_actions_str[cur_step_action], 1);
-      ++cur_step_action;
     }
   else if ((cur_source_string
 	    ? cur_source_string->next
@@ -3830,7 +3823,7 @@ cmd_qtsp (char *packet)
   else
     {
       cur_tpoint = cur_tpoint->next;
-      cur_action = cur_step_action = 0;
+      cur_action = cur_step_action = -1;
       cur_source_string = NULL;
       if (cur_tpoint)
 	response_tracepoint (packet, cur_tpoint);
@@ -3880,9 +3873,15 @@ cmd_qtfv (char *packet)
 static void
 cmd_qtsv (char *packet)
 {
-  trace_debug ("Returning additional trace state variable definition");
+  trace_debug ("Returning first trace state variable definition");
 
-  if (cur_tsv)
+  if (!cur_tpoint)
+    {
+      /* This case would normally never occur, but be prepared for
+	 GDB misbehavior.  */
+      strcpy (packet, "l");
+    }
+  else if (cur_tsv)
     {
       cur_tsv = cur_tsv->next;
       if (cur_tsv)
@@ -3924,38 +3923,6 @@ cmd_qtstmat (char *packet)
     run_inferior_command (packet, strlen (packet) + 1);
 }
 
-/* Sent the agent a command to close it.  */
-
-void
-gdb_agent_about_to_close (int pid)
-{
-  char buf[IPA_CMD_BUF_SIZE];
-
-  if (!maybe_write_ipa_not_loaded (buf))
-    {
-      struct thread_info *save_inferior;
-      struct inferior_list_entry *inf = all_threads.head;
-
-      save_inferior = current_inferior;
-
-      /* Find a certain thread which belongs to process PID.  */
-      while (inf != NULL)
-	{
-	  if (ptid_get_pid (inf->id) == pid)
-	    break;
-	  inf = inf->next;
-	}
-
-      current_inferior = (struct thread_info *) inf;
-
-      strcpy (buf, "close");
-
-      run_inferior_command (buf, strlen (buf) + 1);
-
-      current_inferior = save_inferior;
-    }
-}
-
 /* Return the minimum instruction size needed for fast tracepoints as a
    hexadecimal number.  */
 
@@ -3990,7 +3957,7 @@ cmd_qtbuffer (char *own_buf)
   unpack_varlen_hex (packet, &num);
 
   trace_debug ("Want to get trace buffer, %d bytes at offset 0x%s",
-	       (int) num, phex_nz (offset, 0));
+	       (int) num, pulongest (offset));
 
   tot = (trace_buffer_hi - trace_buffer_lo) - free_space ();
 
@@ -4023,6 +3990,7 @@ cmd_qtbuffer (char *own_buf)
     num = (PBUFSIZ - 16) / 2;
 
   convert_int_to_ascii (tbp, own_buf, num);
+  own_buf[num] = '\0';
 }
 
 static void
@@ -4037,37 +4005,6 @@ cmd_bigqtbuffer_circular (char *own_buf)
   circular_trace_buffer = val;
   trace_debug ("Trace buffer is now %s",
 	       circular_trace_buffer ? "circular" : "linear");
-  write_ok (own_buf);
-}
-
-static void
-cmd_bigqtbuffer_size (char *own_buf)
-{
-  ULONGEST val;
-  LONGEST sval;
-  char *packet = own_buf;
-
-  /* Can't change the size during a tracing run.  */
-  if (tracing)
-    {
-      write_enn (own_buf);
-      return;
-    }
-
-  packet += strlen ("QTBuffer:size:");
-
-  /* -1 is sent as literal "-1".  */
-  if (strcmp (packet, "-1") == 0)
-    sval = DEFAULT_TRACE_BUFFER_SIZE;
-  else
-    {
-      unpack_varlen_hex (packet, &val);
-      sval = (LONGEST) val;
-    }
-
-  init_trace_buffer (sval);
-  trace_debug ("Trace buffer is now %s bytes",
-	       plongest (trace_buffer_size));
   write_ok (own_buf);
 }
 
@@ -4093,7 +4030,6 @@ cmd_qtnotes (char *own_buf)
 	  user[nbytes] = '\0';
 	  ++packet; /* skip the semicolon */
 	  trace_debug ("User is '%s'", user);
-	  xfree (tracing_user_name);
 	  tracing_user_name = user;
 	}
       else if (strncmp ("notes:", packet, strlen ("notes:")) == 0)
@@ -4107,7 +4043,6 @@ cmd_qtnotes (char *own_buf)
 	  notes[nbytes] = '\0';
 	  ++packet; /* skip the semicolon */
 	  trace_debug ("Notes is '%s'", notes);
-	  xfree (tracing_notes);
 	  tracing_notes = notes;
 	}
       else if (strncmp ("tstop:", packet, strlen ("tstop:")) == 0)
@@ -4121,7 +4056,6 @@ cmd_qtnotes (char *own_buf)
 	  stopnote[nbytes] = '\0';
 	  ++packet; /* skip the semicolon */
 	  trace_debug ("tstop note is '%s'", stopnote);
-	  xfree (tracing_stop_note);
 	  tracing_stop_note = stopnote;
 	}
       else
@@ -4193,11 +4127,6 @@ handle_tracepoint_general_set (char *packet)
   else if (strncmp ("QTBuffer:circular:", packet, strlen ("QTBuffer:circular:")) == 0)
     {
       cmd_bigqtbuffer_circular (packet);
-      return 1;
-    }
-  else if (strncmp ("QTBuffer:size:", packet, strlen ("QTBuffer:size:")) == 0)
-    {
-      cmd_bigqtbuffer_size (packet);
       return 1;
     }
   else if (strncmp ("QTNotes:", packet, strlen ("QTNotes:")) == 0)
@@ -4750,19 +4679,15 @@ do_action_at_tracepoint (struct tracepoint_hit_ctx *ctx,
     case 'M':
       {
 	struct collect_memory_action *maction;
-	struct eval_agent_expr_context ax_ctx;
 
 	maction = (struct collect_memory_action *) taction;
-	ax_ctx.regcache = NULL;
-	ax_ctx.tframe = tframe;
-	ax_ctx.tpoint = tpoint;
 
 	trace_debug ("Want to collect %s bytes at 0x%s (basereg %d)",
 		     pulongest (maction->len),
 		     paddress (maction->addr), maction->basereg);
 	/* (should use basereg) */
-	agent_mem_read (&ax_ctx, NULL, (CORE_ADDR) maction->addr,
-			maction->len);
+	agent_mem_read (tframe, NULL,
+			(CORE_ADDR) maction->addr, maction->len);
 	break;
       }
     case 'R':
@@ -4775,7 +4700,7 @@ do_action_at_tracepoint (struct tracepoint_hit_ctx *ctx,
 	trace_debug ("Want to collect registers");
 
 	/* Collect all registers for now.  */
-	regspace = add_traceframe_block (tframe, tpoint,
+	regspace = add_traceframe_block (tframe,
 					 1 + register_cache_size ());
 	if (regspace == NULL)
 	  {
@@ -4817,16 +4742,12 @@ do_action_at_tracepoint (struct tracepoint_hit_ctx *ctx,
     case 'X':
       {
 	struct eval_expr_action *eaction;
-	struct eval_agent_expr_context ax_ctx;
 
 	eaction = (struct eval_expr_action *) taction;
-	ax_ctx.regcache = get_context_regcache (ctx);
-	ax_ctx.tframe = tframe;
-	ax_ctx.tpoint = tpoint;
 
 	trace_debug ("Want to evaluate expression");
 
-	err = gdb_eval_agent_expr (&ax_ctx, eaction->expr, NULL);
+	err = eval_tracepoint_agent_expr (ctx, tframe, eaction->expr, NULL);
 
 	if (err != expr_eval_no_error)
 	  {
@@ -4878,15 +4799,8 @@ condition_true_at_tracepoint (struct tracepoint_hit_ctx *ctx,
     err = ((condfn) (uintptr_t) (tpoint->compiled_cond)) (ctx, &value);
   else
 #endif
-    {
-      struct eval_agent_expr_context ax_ctx;
+    err = eval_tracepoint_agent_expr (ctx, NULL, tpoint->cond, &value);
 
-      ax_ctx.regcache = get_context_regcache (ctx);
-      ax_ctx.tframe = NULL;
-      ax_ctx.tpoint = tpoint;
-
-      err = gdb_eval_agent_expr (&ax_ctx, tpoint->cond, &value);
-    }
   if (err != expr_eval_no_error)
     {
       record_tracepoint_error (tpoint, "condition", err);
@@ -4900,11 +4814,27 @@ condition_true_at_tracepoint (struct tracepoint_hit_ctx *ctx,
   return (value ? 1 : 0);
 }
 
+/* Evaluates a tracepoint agent expression with context CTX,
+   traceframe TFRAME, agent expression AEXPR and store the
+   result in RSLT.  */
+
+static enum eval_result_type
+eval_tracepoint_agent_expr (struct tracepoint_hit_ctx *ctx,
+			    struct traceframe *tframe,
+			    struct agent_expr *aexpr,
+			    ULONGEST *rslt)
+{
+  struct regcache *regcache;
+  regcache = get_context_regcache (ctx);
+
+  return gdb_eval_agent_expr (regcache, tframe, aexpr, rslt);
+}
+
 /* Do memory copies for bytecodes.  */
 /* Do the recording of memory blocks for actions and bytecodes.  */
 
 int
-agent_mem_read (struct eval_agent_expr_context *ctx,
+agent_mem_read (struct traceframe *tframe,
 		unsigned char *to, CORE_ADDR from, ULONGEST len)
 {
   unsigned char *mspace;
@@ -4925,7 +4855,7 @@ agent_mem_read (struct eval_agent_expr_context *ctx,
 
       blocklen = (remaining > 65535 ? 65535 : remaining);
       sp = 1 + sizeof (from) + sizeof (blocklen) + blocklen;
-      mspace = add_traceframe_block (ctx->tframe, ctx->tpoint, sp);
+      mspace = add_traceframe_block (tframe, sp);
       if (mspace == NULL)
 	return 1;
       /* Identify block as a memory block.  */
@@ -4946,7 +4876,7 @@ agent_mem_read (struct eval_agent_expr_context *ctx,
 }
 
 int
-agent_mem_read_string (struct eval_agent_expr_context *ctx,
+agent_mem_read_string (struct traceframe *tframe,
 		       unsigned char *to, CORE_ADDR from, ULONGEST len)
 {
   unsigned char *buf, *mspace;
@@ -4982,7 +4912,7 @@ agent_mem_read_string (struct eval_agent_expr_context *ctx,
 	    }
 	}
       sp = 1 + sizeof (from) + sizeof (blocklen) + blocklen;
-      mspace = add_traceframe_block (ctx->tframe, ctx->tpoint, sp);
+      mspace = add_traceframe_block (tframe, sp);
       if (mspace == NULL)
 	{
 	  xfree (buf);
@@ -5008,12 +4938,12 @@ agent_mem_read_string (struct eval_agent_expr_context *ctx,
 /* Record the value of a trace state variable.  */
 
 int
-agent_tsv_read (struct eval_agent_expr_context *ctx, int n)
+agent_tsv_read (struct traceframe *tframe, int n)
 {
   unsigned char *vspace;
   LONGEST val;
 
-  vspace = add_traceframe_block (ctx->tframe, ctx->tpoint,
+  vspace = add_traceframe_block (tframe,
 				 1 + sizeof (n) + sizeof (LONGEST));
   if (vspace == NULL)
     return 1;
@@ -6390,8 +6320,7 @@ upload_fast_traceframes (void)
 	{
 	  /* Copy the whole set of blocks in one go for now.  FIXME:
 	     split this in smaller blocks.  */
-	  block = add_traceframe_block (tframe, tpoint,
-					ipa_tframe.data_size);
+	  block = add_traceframe_block (tframe, ipa_tframe.data_size);
 	  if (block != NULL)
 	    {
 	      if (read_inferior_memory (tf
@@ -6690,7 +6619,7 @@ collect_ust_data_at_tracepoint (struct tracepoint_hit_ctx *ctx,
   trace_debug ("Want to collect ust data");
 
   /* 'S' + size + string */
-  bufspace = add_traceframe_block (tframe, umd->tpoint,
+  bufspace = add_traceframe_block (tframe,
 				   1 + sizeof (blocklen) + size + 1);
   if (bufspace == NULL)
     {
@@ -6737,7 +6666,7 @@ static int
 run_inferior_command (char *cmd, int len)
 {
   int err = -1;
-  int pid = ptid_get_pid (current_ptid);
+  int pid = ptid_get_pid (current_inferior->entry.id);
 
   trace_debug ("run_inferior_command: running: %s", cmd);
 
@@ -6819,14 +6748,13 @@ init_named_socket (const char *name)
   return fd;
 }
 
-static char agent_socket_name[UNIX_PATH_MAX];
-
 static int
 gdb_agent_socket_init (void)
 {
   int result, fd;
+  char name[UNIX_PATH_MAX];
 
-  result = xsnprintf (agent_socket_name, UNIX_PATH_MAX, "%s/gdb_ust%d",
+  result = xsnprintf (name, UNIX_PATH_MAX, "%s/gdb_ust%d",
 		      SOCK_DIR, getpid ());
   if (result >= UNIX_PATH_MAX)
     {
@@ -6834,11 +6762,11 @@ gdb_agent_socket_init (void)
       return -1;
     }
 
-  fd = init_named_socket (agent_socket_name);
+  fd = init_named_socket (name);
   if (fd < 0)
     warning ("Error initializing named socket (%s) for communication with the "
 	     "ust helper thread. Check that directory exists and that it "
-	     "is writable.", agent_socket_name);
+	     "is writable.", name);
 
   return fd;
 }
@@ -7067,13 +6995,11 @@ gdb_ust_init (void)
 #endif /* HAVE_UST */
 
 #include <sys/syscall.h>
-#include <stdlib.h>
 
-static void
-gdb_agent_remove_socket (void)
-{
-  unlink (agent_socket_name);
-}
+#if defined(__ANDROID__) && !defined(SYS_gettid)
+#include <sys/linux-syscalls.h>
+#define SYS_gettid __NR_gettid
+#endif
 
 /* Helper thread of agent.  */
 
@@ -7081,8 +7007,6 @@ static void *
 gdb_agent_helper_thread (void *arg)
 {
   int listen_fd;
-
-  atexit (gdb_agent_remove_socket);
 
   while (1)
     {
@@ -7104,13 +7028,16 @@ gdb_agent_helper_thread (void *arg)
 	  int fd;
 	  char buf[1];
 	  int ret;
-	  int stop_loop = 0;
 
 	  tmp = sizeof (sockaddr);
 
 	  do
 	    {
+#ifdef __ANDROID__
+	      fd = accept (listen_fd, (struct sockaddr*)&sockaddr, &tmp);
+#else
 	      fd = accept (listen_fd, &sockaddr, &tmp);
+#endif
 	    }
 	  /* It seems an ERESTARTSYS can escape out of accept.  */
 	  while (fd == -512 || (fd == -1 && errno == EINTR));
@@ -7137,12 +7064,8 @@ gdb_agent_helper_thread (void *arg)
 
 	  if (cmd_buf[0])
 	    {
-	      if (strncmp ("close", cmd_buf, 5) == 0)
-		{
-		  stop_loop = 1;
-		}
 #ifdef HAVE_UST
-	      else if (strcmp ("qTfSTM", cmd_buf) == 0)
+	      if (strcmp ("qTfSTM", cmd_buf) == 0)
 		{
 		  cmd_qtfstm (cmd_buf);
 		}
@@ -7174,20 +7097,6 @@ gdb_agent_helper_thread (void *arg)
 	  /* Fix compiler's warning: ignoring return value of 'write'.  */
 	  ret = write (fd, buf, 1);
 	  close (fd);
-
-	  if (stop_loop)
-	    {
-	      close (listen_fd);
-	      unlink (agent_socket_name);
-
-	      /* Sleep endlessly to wait the whole inferior stops.  This
-		 thread can not exit because GDB or GDBserver may still need
-		 'current_inferior' (representing this thread) to access
-		 inferior memory.  Otherwise, this thread exits earlier than
-		 other threads, and 'current_inferior' is set to NULL.  */
-	      while (1)
-		sleep (10);
-	    }
 	}
     }
 
@@ -7285,8 +7194,10 @@ get_timestamp (void)
 void
 initialize_tracepoint (void)
 {
-  /* Start with the default size.  */
-  init_trace_buffer (DEFAULT_TRACE_BUFFER_SIZE);
+  /* There currently no way to change the buffer size.  */
+  const int sizeOfBuffer = 5 * 1024 * 1024;
+  unsigned char *buf = xmalloc (sizeOfBuffer);
+  init_trace_buffer (buf, sizeOfBuffer);
 
   /* Wire trace state variable 1 to be the timestamp.  This will be
      uploaded to GDB upon connection and become one of its trace state
