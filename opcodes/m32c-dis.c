@@ -1375,12 +1375,13 @@ print_insn_m32c (bfd_vma pc, disassemble_info *info)
   (*info->fprintf_func) (info->stream, UNKNOWN_INSN_MSG);
   return cd->default_insn_bitsize / 8;
 }
+
 #endif
 
 int
 print_insn_m32c (bfd_vma pc, disassemble_info *info)
 {
-  printf("should never print this %lx %x", pc, (unsigned)info);
+  printf("should never print this %lx %x", pc, info->num_symbols);
   return 0;
 }
 
