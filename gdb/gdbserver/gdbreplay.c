@@ -1,6 +1,6 @@
 /* Replay a remote debug session logfile for GDB.
-   Copyright (C) 1996, 1998-2000, 2002-2003, 2005-2012 Free Software
-   Foundation, Inc.
+   Copyright (C) 1996, 1998, 1999, 2000, 2002, 2003, 2005, 2006, 2007, 2008,
+   2009, 2010, 2011 Free Software Foundation, Inc.
    Written by Fred Fish (fnf@cygnus.com) from pieces of gdbserver.
 
    This file is part of GDB.
@@ -420,7 +420,7 @@ static void
 gdbreplay_version (void)
 {
   printf ("GNU gdbreplay %s%s\n"
-	  "Copyright (C) 2012 Free Software Foundation, Inc.\n"
+	  "Copyright (C) 2011 Free Software Foundation, Inc.\n"
 	  "gdbreplay is free software, covered by "
 	  "the GNU General Public License.\n"
 	  "This gdbreplay was configured as \"%s\"\n",

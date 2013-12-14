@@ -1,5 +1,6 @@
 /* Thread management interface, for the remote server for GDB.
-   Copyright (C) 2002, 2004-2012 Free Software Foundation, Inc.
+   Copyright (C) 2002, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
+   Free Software Foundation, Inc.
 
    Contributed by MontaVista Software.
 
@@ -26,13 +27,15 @@ extern int debug_threads;
 
 static int thread_db_use_events;
 
+#include "gdb_proc_service.h"
+#define GDBSERVER /* GOOGLE LOCAL: see gdb_thread_db.h */
+
 /* Android doesn't have libthread_db.so.1, just libthread_db.so.  */
 #ifdef __ANDROID__
 #define LIBTHREAD_DB_SO "libthread_db.so"
 #endif
 
-#include "gdb_proc_service.h"
-#include "gdb_thread_db.h"
+#include "../gdb-7.3/gdb_thread_db.h"
 
 #ifndef USE_LIBTHREAD_DB_DIRECTLY
 #include <dlfcn.h>
@@ -727,8 +730,8 @@ try_thread_db_load_from_dir (const char *dir, size_t dir_len)
 
       memcpy (cp, dir, dir_len);
       cp[dir_len] = '\0';
-      warning (_("libthread-db-search-path component too long,"
-		 " ignored: %s."), cp);
+      warning ("libthread-db-search-path component too long,"
+	       " ignored: %s.", cp);
       free (cp);
       return 0;
     }

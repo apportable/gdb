@@ -1,5 +1,6 @@
 dnl Autoconf configure script for GDB server.
-dnl Copyright (C) 2000, 2002-2012 Free Software Foundation, Inc.
+dnl Copyright (C) 2000, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
+dnl 2010, 2011 Free Software Foundation, Inc.
 dnl
 dnl This file is part of GDB.
 dnl
@@ -22,18 +23,7 @@ AC_PREREQ(2.59)dnl
 
 AC_INIT(server.c)
 AC_CONFIG_HEADER(config.h:config.in)
-
-AM_MAINTAINER_MODE
-
-AC_ARG_WITH([sysroot],
-  [AS_HELP_STRING([--with-sysroot=SYSROOT],
-                  [use sysroot as the system root during the build])],
-  [if test x"$withval" != x ; then
-     CFLAGS="$CFLAGS --sysroot=$withval"
-     CPPFLAGS="$CPPFLAGS --sysroot=$withval"
-     LDFLAGS="$LDFLAGS --sysroot=$withval"
-   fi],
-  [])
+AC_CONFIG_LIBOBJ_DIR(../gnulib)
 
 AC_PROG_CC
 AC_GNU_SOURCE
@@ -41,33 +31,20 @@ AC_GNU_SOURCE
 AC_CANONICAL_SYSTEM
 
 AC_PROG_INSTALL
-AC_PROG_RANLIB
 
 AC_ARG_PROGRAM
 
 AC_HEADER_STDC
-AC_HEADER_DIRENT
 
 AC_FUNC_ALLOCA
-
-# Check for the 'make' the user wants to use.
-AC_CHECK_PROGS(MAKE, make)
-
-# Configure gnulib.  We can't use AC_CONFIG_SUBDIRS as that'd expect
-# to find the the source subdir to be configured directly under
-# gdbserver/.  We need to build gnulib under some other directory not
-# "gnulib", to avoid the problem of both GDB and GDBserver wanting to
-# build it in the same directory, when building in the source dir.
-ACX_CONFIGURE_DIR(["../gnulib"], ["build-gnulib-gdbserver"])
-
 AC_CHECK_HEADERS(sgtty.h termio.h termios.h sys/reg.h string.h dnl
 		 proc_service.h sys/procfs.h thread_db.h linux/elf.h dnl
 		 stdlib.h unistd.h dnl
 		 errno.h fcntl.h signal.h sys/file.h malloc.h dnl
 		 sys/ioctl.h netinet/in.h sys/socket.h netdb.h dnl
 		 netinet/tcp.h arpa/inet.h sys/wait.h sys/un.h)
-AC_CHECK_FUNCS(pread pwrite pread64 readlink)
-AC_REPLACE_FUNCS(vasprintf vsnprintf)
+AC_CHECK_FUNCS(pread pwrite pread64)
+AC_REPLACE_FUNCS(memmem vasprintf vsnprintf)
 
 # Check for UST
 ustlibs=""
@@ -184,16 +161,27 @@ AC_TRY_LINK([
   [AC_MSG_RESULT(no)])
 fi
 
-AC_CHECK_DECLS([strerror, perror, vasprintf, vsnprintf])
+AC_CHECK_DECLS([strerror, perror, memmem, vasprintf, vsnprintf])
 
 AC_CHECK_TYPES(socklen_t, [], [],
 [#include <sys/types.h>
 #include <sys/socket.h>
 ])
 
-AC_CHECK_TYPES([Elf32_auxv_t, Elf64_auxv_t], [], [],
-#include <elf.h>
-)
+dnl GOOGLE LOCAL: configure flag to turn on googleisms.
+dnl This is for i386/amd64-linux gdbs deployed at Google.
+AC_ARG_ENABLE(googleisms,
+AS_HELP_STRING([--enable-googleisms], [enable misc googleisms for i386/amd64-linux at Google]),
+[case "${enableval}" in
+  yes)  enable_googleisms=yes ;;
+  no)   enable_googleisms=no ;;
+  *)    AC_MSG_ERROR(bad value ${enableval} for GDB enable-google option) ;;
+esac],
+[enable_googleisms=no])
+if test x"$enable_googleisms" = xyes; then
+  AC_DEFINE(HAVE_GOOGLEISMS, 1, [Define if googleisms are enabled.])
+fi
+AC_SUBST(enable_googleisms)
 
 ACX_PKGVERSION([GDB])
 ACX_BUGURL([http://www.gnu.org/software/gdb/bugs/])
@@ -295,30 +283,11 @@ if test "$ac_cv_header_sys_procfs_h" = yes; then
   BFD_HAVE_SYS_PROCFS_TYPE(elf_fpregset_t)
 fi
 
-dnl Some systems (e.g., Android) have lwpid_t defined in libthread_db.h.
-if test "$bfd_cv_have_sys_procfs_type_lwpid_t" != yes; then
-  GDBSERVER_HAVE_THREAD_DB_TYPE(lwpid_t)
-fi
-
-dnl Some systems (e.g., Android) have psaddr_t defined in libthread_db.h.
-if test "$bfd_cv_have_sys_procfs_type_psaddr_t" != yes; then
-  GDBSERVER_HAVE_THREAD_DB_TYPE(psaddr_t)
-fi
-
-case "$target" in
-*android*)
-    srv_android_thread_db="yes"
-    thread_db_inc="-I$srcdir/../../android -fno-short-enums"
-    ;;
-*)
-    dnl Check for libdl, but do not add it to LIBS as only gdbserver
-    dnl needs it (and gdbreplay doesn't).
-    old_LIBS="$LIBS"
-    AC_CHECK_LIB(dl, dlopen)
-    LIBS="$old_LIBS"
-    ;;
-esac
-AC_SUBST(thread_db_inc)
+dnl Check for libdl, but do not add it to LIBS as only gdbserver
+dnl needs it (and gdbreplay doesn't).
+old_LIBS="$LIBS"
+AC_CHECK_LIB(dl, dlopen)
+LIBS="$old_LIBS"
 
 srv_thread_depfiles=
 srv_libs=
@@ -345,15 +314,11 @@ if test "$srv_linux_thread_db" = "yes"; then
     AC_SUBST(RDYNAMIC)
     LDFLAGS="$old_LDFLAGS"
     AC_MSG_RESULT($found)
-  elif test "$srv_android_thread_db" != "yes"; then
-    srv_libs="-lthread_db"
+  else
+    srv_libs="-lthread_db -lc"
   fi
 
   srv_thread_depfiles="thread-db.o proc-service.o"
-  if test "$srv_android_thread_db" = "yes"; then
-    srv_thread_depfiles="$srv_thread_depfiles libthread_db.o"
-  fi
-
   USE_THREAD_DB="-DUSE_THREAD_DB"
   AC_CACHE_CHECK([for TD_VERSION], gdbsrv_cv_have_td_version,
   [AC_TRY_COMPILE([#include <thread_db.h>], [TD_VERSION;],
@@ -367,10 +332,10 @@ fi
 AC_ARG_WITH(libthread-db,
 AS_HELP_STRING([--with-libthread-db=PATH], [use given libthread_db directly]),
 [srv_libthread_db_path="${withval}"
-  srv_libs="$srv_libthread_db_path"
+  srv_libs="$srv_libthread_db_path -lc"
 ])
 
-if test "$srv_libs" != "" -a "$srv_libs" != "-ldl" -o "$srv_android_thread_db" = "yes"; then
+if test "$srv_libs" != "" -a "$srv_libs" != "-ldl"; then
   AC_DEFINE(USE_LIBTHREAD_DB_DIRECTLY, 1, [Define if we should use libthread_db directly.])
 fi
 
@@ -406,29 +371,6 @@ AC_COMPILE_IFELSE(AC_LANG_PROGRAM([]),
 		        [gdbsrv_cv_have_visibility_hidden=yes],
 	        	[gdbsrv_cv_have_visibility_hidden=no])
 CFLAGS="$saved_cflags"
-
-dnl Check if we can disable the virtual address space randomization.
-dnl The functionality of setarch -R.
-AC_CHECK_DECLS([ADDR_NO_RANDOMIZE],,, [#include <sys/personality.h>])
-define([PERSONALITY_TEST], [AC_LANG_PROGRAM([#include <sys/personality.h>], [
-#      if !HAVE_DECL_ADDR_NO_RANDOMIZE
-#       define ADDR_NO_RANDOMIZE 0x0040000
-#      endif
-       /* Test the flag could be set and stays set.  */
-       personality (personality (0xffffffff) | ADDR_NO_RANDOMIZE);
-       if (!(personality (personality (0xffffffff)) & ADDR_NO_RANDOMIZE))
-           return 1])])
-AC_RUN_IFELSE([PERSONALITY_TEST],
-              [gdbsrv_cv_have_personality=true],
-              [gdbsrv_cv_have_personality=false],
-              [AC_LINK_IFELSE([PERSONALITY_TEST],
-                              [gdbsrv_cv_have_personality=true],
-                              [gdbsrv_cv_have_personality=false])])
-if $gdbsrv_cv_have_personality
-then
-    AC_DEFINE([HAVE_PERSONALITY], 1,
-              [Define if you support the personality syscall.])
-fi
 
 
 IPA_DEPFILES=""
@@ -468,14 +410,6 @@ AC_SUBST(srv_xmlbuiltin)
 AC_SUBST(srv_xmlfiles)
 AC_SUBST(IPA_DEPFILES)
 AC_SUBST(extra_libraries)
-
-GNULIB=build-gnulib-gdbserver/import
-
-GNULIB_STDINT_H=
-if test x"$STDINT_H" != x; then
-  GNULIB_STDINT_H=$GNULIB/$STDINT_H
-fi
-AC_SUBST(GNULIB_STDINT_H)
 
 AC_OUTPUT(Makefile,
 [case x$CONFIG_HEADERS in
