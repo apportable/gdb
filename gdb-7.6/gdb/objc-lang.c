@@ -948,6 +948,43 @@ parse_method (char *method, char *type, char **class,
   return s2;
 }
 
+
+// This is an Objective C mangled function like _2D__5B_NSObject_28_Foundation_29__20_copyWithZone_3A__5D_
+
+static char get_val(char in)
+{
+  if (in >= '0' && in <= '9') return in - '0';
+  if (in >= 'A' && in <= 'F') return in - 'A' + 10;
+  if (in >= 'a' && in <= 'f') return in - 'a' + 10;
+  fprintf_unfiltered (gdb_stdlog, "Error in get_val - in is %c\n", in);
+  return 0;
+}
+
+char *demangle_new_objc(const char *in)
+{
+  // Make sure first four characters are encoding for '+' or '-'
+  if (!(in[0] == '_' && in[1] == '2' && (in[2] == 'B' || in[2] == 'D') && in[3] == '_')) {
+    return 0;
+  } else {
+    const char *ptr = in;
+    char *out = malloc(strlen(in));
+    char *buf = out;
+
+    while (*ptr) {
+      if (*ptr == '_' && ptr[1] >= '0' && ptr[1] <= '9' && ptr[2] != '\0' && ptr[3] =='_') {
+        // Convert string of format _xx_ to ascii value of hex xx
+        // The ptr[1] checks are for symbols like the "id" in _2D__5B_JMItem_20_item_id_5D_
+        *out++ = get_val(ptr[1]) * 16 + get_val(ptr[2]);
+        ptr += 4;
+      } else {
+        *out++ = *ptr++; 
+      }
+    }
+    *out = '\0';
+    return buf;
+  }
+}
+
 static void
 find_methods (char type, const char *class, const char *category, 
 	      const char *selector,
