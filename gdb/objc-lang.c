@@ -1122,6 +1122,7 @@ static char get_val(char in)
 {
   if (in >= '0' && in <= '9') return in - '0';
   if (in >= 'A' && in <= 'F') return in - 'A' + 10;
+  if (in >= 'a' && in <= 'f') return in - 'a' + 10;
   fprintf_unfiltered (gdb_stdlog, "Error in get_val - in is %c\n", in);
   return 0;
 }
