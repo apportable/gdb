@@ -221,7 +221,7 @@ print_insn_rl78 (bfd_vma addr, disassemble_info * dis)
 
 	    case '0':
 	    case '1':
-	      oper = opcode.op + *s - '0';
+	      oper = &opcode.op[*s - '0'];
 	      if (do_bang)
 		PC ('!');
 
