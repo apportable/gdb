@@ -21,6 +21,9 @@
 
 #include <sys/types.h>
 
+/* ANDROID: for user_pt_regs and prgregset_t */
+#include <sys/ptrace.h>
+
 #ifdef HAVE_PROC_SERVICE_H
 #include <proc_service.h>
 #else
@@ -37,6 +40,9 @@
 #  include <linux/elf.h>
 # endif
 #endif
+
+/* ANDROID: for AT_PHDR and AT_PHNUM */
+#include <linux/auxvec.h>
 
 typedef enum
 {
@@ -55,6 +61,12 @@ typedef unsigned int lwpid_t;
 
 #ifndef HAVE_PSADDR_T
 typedef void *psaddr_t;
+#endif
+
+/* ANDROID */
+#ifdef UAPI_HEADERS
+typedef unsigned long elf_greg_t;
+typedef elf_greg_t elf_gregset_t[(sizeof (struct user_pt_regs) / sizeof(elf_greg_t))];
 #endif
 
 #ifndef HAVE_PRGREGSET_T
