@@ -26,7 +26,7 @@
 #include "i387-fp.h"
 #include "i386-low.h"
 #include "i386-xstate.h"
-#include "elf/common.h"
+#include "../include/elf/common.h"
 
 #include "gdb_proc_service.h"
 
