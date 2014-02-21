@@ -21,8 +21,19 @@
 
 #include <sys/types.h>
 
-/* ANDROID: for user_pt_regs and prgregset_t */
+/* ANDROID: */
+#ifdef UAPI_HEADERS
+#if defined(__aarch64__) || defined(__arm__)
 #include <sys/ptrace.h>
+typedef unsigned long elf_greg_t;
+typedef elf_greg_t elf_gregset_t[(sizeof (struct user_pt_regs) / sizeof(elf_greg_t))];
+#else
+#include <ucontext.h>
+typedef greg_t elf_greg_t;
+typedef gregset_t elf_gregset_t;
+typedef fpregset_t elf_fpregset_t;
+#endif
+#endif
 
 #ifdef HAVE_PROC_SERVICE_H
 #include <proc_service.h>
@@ -61,12 +72,6 @@ typedef unsigned int lwpid_t;
 
 #ifndef HAVE_PSADDR_T
 typedef void *psaddr_t;
-#endif
-
-/* ANDROID */
-#ifdef UAPI_HEADERS
-typedef unsigned long elf_greg_t;
-typedef elf_greg_t elf_gregset_t[(sizeof (struct user_pt_regs) / sizeof(elf_greg_t))];
 #endif
 
 #ifndef HAVE_PRGREGSET_T

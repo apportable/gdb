@@ -190,11 +190,11 @@ ps_get_thread_area (const struct ps_prochandle *ph,
       switch (idx)
 	{
 	case FS:
-	  if (ptrace (PTRACE_ARCH_PRCTL, lwpid, base, ARCH_GET_FS) == 0)
+	  if (ptrace (PTRACE_ARCH_PRCTL, lwpid, base, (PTRACE_ARG4_TYPE) ARCH_GET_FS) == 0)
 	    return PS_OK;
 	  break;
 	case GS:
-	  if (ptrace (PTRACE_ARCH_PRCTL, lwpid, base, ARCH_GET_GS) == 0)
+	  if (ptrace (PTRACE_ARCH_PRCTL, lwpid, base, (PTRACE_ARG4_TYPE) ARCH_GET_GS) == 0)
 	    return PS_OK;
 	  break;
 	default:
@@ -230,7 +230,7 @@ x86_get_thread_area (int lwpid, CORE_ADDR *addr)
   if (use_64bit)
     {
       void *base;
-      if (ptrace (PTRACE_ARCH_PRCTL, lwpid, &base, ARCH_GET_FS) == 0)
+      if (ptrace (PTRACE_ARCH_PRCTL, lwpid, &base, (PTRACE_ARG4_TYPE) ARCH_GET_FS) == 0)
 	{
 	  *addr = (CORE_ADDR) (uintptr_t) base;
 	  return 0;
@@ -874,7 +874,11 @@ typedef struct compat_x32_siginfo
 /* glibc at least up to 2.3.2 doesn't have si_timerid, si_overrun.
    In their place is si_timer1,si_timer2.  */
 #ifndef si_timerid
-#define si_timerid si_timer1
+# ifdef __BIONIC__
+#  define si_timerid si_tid
+# else
+#  define si_timerid si_timer1
+# endif
 #endif
 #ifndef si_overrun
 #define si_overrun si_timer2
