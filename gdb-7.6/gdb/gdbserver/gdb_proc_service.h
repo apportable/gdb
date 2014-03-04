@@ -28,10 +28,11 @@
 typedef unsigned long elf_greg_t;
 typedef elf_greg_t elf_gregset_t[(sizeof (struct user_pt_regs) / sizeof(elf_greg_t))];
 #else
-#include <ucontext.h>
-typedef greg_t elf_greg_t;
-typedef gregset_t elf_gregset_t;
-typedef fpregset_t elf_fpregset_t;
+#include <sys/user.h>
+typedef unsigned long long elf_greg_t;
+#define ELF_NGREG (sizeof (struct user_regs_struct) / sizeof(elf_greg_t))
+typedef elf_greg_t elf_gregset_t[ELF_NGREG];
+typedef struct user_i387_struct elf_fpregset_t;
 #endif
 #endif
 
