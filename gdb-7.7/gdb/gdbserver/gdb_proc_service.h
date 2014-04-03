@@ -21,6 +21,21 @@
 
 #include <sys/types.h>
 
+/* ANDROID: */
+#ifdef UAPI_HEADERS
+#if defined(__aarch64__) || defined(__arm__)
+#include <sys/ptrace.h>
+typedef unsigned long elf_greg_t;
+typedef elf_greg_t elf_gregset_t[(sizeof (struct user_pt_regs) / sizeof(elf_greg_t))];
+#else
+#include <sys/user.h>
+typedef unsigned long long elf_greg_t;
+#define ELF_NGREG (sizeof (struct user_regs_struct) / sizeof(elf_greg_t))
+typedef elf_greg_t elf_gregset_t[ELF_NGREG];
+typedef struct user_i387_struct elf_fpregset_t;
+#endif
+#endif
+
 #ifdef HAVE_PROC_SERVICE_H
 #include <proc_service.h>
 #else
@@ -37,6 +52,9 @@
 #  include <linux/elf.h>
 # endif
 #endif
+
+/* ANDROID: for AT_PHDR and AT_PHNUM */
+#include <linux/auxvec.h>
 
 typedef enum
 {

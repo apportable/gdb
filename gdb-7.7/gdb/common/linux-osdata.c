@@ -1048,7 +1048,7 @@ time_from_time_t (char *time, int maxlen, TIME_T seconds)
    At most MAXLEN characters are copied.  */
 
 static void
-group_from_gid (char *group, int maxlen, gid_t gid)
+gdb_group_from_gid (char *group, int maxlen, gid_t gid)
 {
   struct group *grentry = getgrgid (gid);
   
@@ -1118,9 +1118,9 @@ linux_xfer_osdata_shm (gdb_byte *readbuf,
 		      char atime_str[32], dtime_str[32], ctime_str[32];
 		      
 		      user_from_uid (user, sizeof (user), uid);
-		      group_from_gid (group, sizeof (group), gid);
+		      gdb_group_from_gid (group, sizeof (group), gid);
 		      user_from_uid (cuser, sizeof (cuser), cuid);
-		      group_from_gid (cgroup, sizeof (cgroup), cgid);
+		      gdb_group_from_gid (cgroup, sizeof (cgroup), cgid);
 		      
 		      command_from_pid (ccmd, sizeof (ccmd), cpid);
 		      command_from_pid (lcmd, sizeof (lcmd), lpid);
@@ -1242,9 +1242,9 @@ linux_xfer_osdata_sem (gdb_byte *readbuf,
 		      char otime_str[32], ctime_str[32];
 		      
 		      user_from_uid (user, sizeof (user), uid);
-		      group_from_gid (group, sizeof (group), gid);
+		      gdb_group_from_gid (group, sizeof (group), gid);
 		      user_from_uid (cuser, sizeof (cuser), cuid);
-		      group_from_gid (cgroup, sizeof (cgroup), cgid);
+		      gdb_group_from_gid (cgroup, sizeof (cgroup), cgid);
 		      
 		      time_from_time_t (otime_str, sizeof (otime_str), otime);
 		      time_from_time_t (ctime_str, sizeof (ctime_str), ctime);
@@ -1356,9 +1356,9 @@ linux_xfer_osdata_msg (gdb_byte *readbuf,
 		      char stime_str[32], rtime_str[32], ctime_str[32];
 		      
 		      user_from_uid (user, sizeof (user), uid);
-		      group_from_gid (group, sizeof (group), gid);
+		      gdb_group_from_gid (group, sizeof (group), gid);
 		      user_from_uid (cuser, sizeof (cuser), cuid);
-		      group_from_gid (cgroup, sizeof (cgroup), cgid);
+		      gdb_group_from_gid (cgroup, sizeof (cgroup), cgid);
 		      
 		      command_from_pid (lscmd, sizeof (lscmd), lspid);
 		      command_from_pid (lrcmd, sizeof (lrcmd), lrpid);

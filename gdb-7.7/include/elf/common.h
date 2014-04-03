@@ -32,6 +32,7 @@
 
 /* Fields in e_ident[].  */
 
+#ifndef EI_MAG0
 #define EI_MAG0		0	/* File identification byte 0 index */
 #define ELFMAG0		   0x7F	/* Magic number byte 0 */
 
@@ -996,6 +997,7 @@
 #define AT_SUN_MMU      2015    /* String for name of MMU module.   */
 #define AT_SUN_LDDATA   2016    /* Dynamic linker's data segment address.  */
 #define AT_SUN_AUXFLAGS	2017	/* AF_SUN_ flags passed from the kernel.  */
+#endif
 
 
 #endif /* _ELF_COMMON_H */
