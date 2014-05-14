@@ -55,4 +55,9 @@ char *apply_type_printers (void *, struct type *type);
 
 void free_type_printers (void *arg);
 
+#ifdef HAVE_PYTHON
+char* last_n_folder_elements(char* input, char slash, size_t n_folders);
+size_t add_clue(size_t n_so_far, char** clues, char* new_clue);
+void find_python_executable_and_pythonhome(char** python_executable, char** pythonhome);
+#endif
 #endif /* GDB_PYTHON_H */

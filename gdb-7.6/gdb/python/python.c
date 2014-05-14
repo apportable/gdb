@@ -1811,11 +1811,7 @@ message == an error message without a stack will be printed."),
 #ifdef WITH_PYTHON_PATH
   /* ANDROID CHANGE BEGIN */
   find_python_executable_and_pythonhome(&python_executable, &pythonhome);
-  if (python_executable != NULL)
-  {
-    Py_SetProgramName (python_executable);
-    free(python_executable);
-  }
+  progname = python_executable;
   if (pythonhome != NULL)
   {
 #if defined(__MINGW32__)
