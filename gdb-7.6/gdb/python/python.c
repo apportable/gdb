@@ -35,6 +35,12 @@
 #include "cli/cli-utils.h"
 
 #include <ctype.h>
+/* ANDROID CHANGE BEGIN */
+#include <sys/param.h>
+#if defined(__APPLE__)
+#include <libproc.h>
+#endif
+/* ANDROID CHANGE END */
 
 /* Declared constants and enum for python stack printing.  */
 static const char python_excp_none[] = "none";
@@ -58,7 +64,6 @@ static const char *gdbpy_should_print_stack = python_excp_message;
 
 #ifdef HAVE_PYTHON
 
-/* ANDROID CHANGE BEGIN */
 static char pyver_string[]=
 #if defined(HAVE_LIBPYTHON2_4)
   "2.4";
@@ -70,7 +75,7 @@ static char pyver_string[]=
   "2.7.5";
 #endif
 
-/* Used to aid finding Python in exceptional situations. */
+/* ANDROID CHANGE BEGIN */
 
 static char host_name_string[]=
 #if defined(__APPLE__)
@@ -1454,8 +1459,49 @@ user_show_python (char *args, int from_tty)
 
 #ifdef HAVE_PYTHON
 /* ANDROID CHANGE BEGIN */
+/* buf should contain an initial value, though it is ignored
+   for Linux, Darwin or Windows. */
+static int get_absolute_executable_path(char *buf, size_t bufsize)
+{
+#if defined(__MINGW32__)
+  if (GetModuleFileName(NULL, buf, (DWORD)bufsize) != 0) {
+    char* winslash = buf;
+    while ((winslash = strchr (winslash, '\\')) != NULL)
+      *winslash = '/';
+    return strlen(buf);
+  }
+  return -1;
+#elif defined(__linux__)
+  return readlink("/proc/self/exe", buf, bufsize);
+#elif defined(__APPLE__)
+  char pid_buf[PROC_PIDPATHINFO_MAXSIZE];
+  pid_t pid;
+  pid = getpid();
+  if (proc_pidpath(pid, pid_buf, sizeof(pid_buf)) > 0 )
+  {
+    strncpy(buf, pid_buf, bufsize);
+    buf[bufsize-1] = '\0';
+    return strlen(buf);
+  }
+#else
+  char cwd_buf[MAXPATHLEN+bufsize+1];
+  if (buf[0]=='/')
+    return strlen(buf);
+  if (getwd(&cwd_buf[0])) {
+    strncat(cwd_buf, "/", bufsize);
+    cwd_buf[MAXPATHLEN+bufsize] = '\0';
+    strncat(cwd_buf, buf, bufsize);
+    cwd_buf[MAXPATHLEN+bufsize] = '\0';
+    strncpy(buf, cwd_buf, bufsize);
+    buf[bufsize-1] = '\0';
+  }
+#endif /* __MINGW32__ */
+  return strlen(buf);
+}
+
+
 /* Provided input is not NULL, will always return a pointer into it. */
-char* last_n_folder_elements(char* input, char slash, size_t n_folders)
+static char* last_n_folder_elements(char* input, char slash, size_t n_folders)
 {
   char* temp;
   size_t counter;
@@ -1468,15 +1514,15 @@ char* last_n_folder_elements(char* input, char slash, size_t n_folders)
   while (counter != 0)
   {
     while (temp >= input && *temp != slash)
-	{
-	  --temp;
+    {
+      --temp;
     }
-	if (temp < input)
-	{
+    if (temp < input)
+    {
       return input;
-	}
-	--temp;
-	--counter;
+    }
+    --temp;
+    --counter;
   }
   if (temp[1] == slash)
   {
@@ -1492,10 +1538,10 @@ size_t add_clue(size_t n_so_far, char** clues, char* new_clue)
   for (counter = 0; counter < n_so_far; ++counter)
     {
       if (!strcmp(clues[counter],new_clue))
-	    {
-		  free(new_clue);
-		  return n_so_far;
-	    }
+        {
+          free(new_clue);
+          return n_so_far;
+        }
     }
   clues[n_so_far++] = new_clue;
   return n_so_far;
@@ -1511,7 +1557,7 @@ size_t add_clue(size_t n_so_far, char** clues, char* new_clue)
     but I'm thinking of dropping the final python-2.7.5 folder.
     See notes [1] and [2] below for more details.
 */
-void find_python_executable_and_pythonhome(char** python_executable,
+static void find_python_executable_and_pythonhome(char** python_executable,
                                            char** pythonhome)
 {
   int debug_this = 0;
@@ -1527,30 +1573,18 @@ void find_python_executable_and_pythonhome(char** python_executable,
   char* temp;
   char* host_py_folders;
   char* binexesuffix;
-  char* gdb_program_name_n;
   /* Clues always include binexesuffix */
   char* clues[5];
+  char *android_top = NULL;
   size_t n_clues = 0;
   size_t counter;
   struct OS_STAT buf;
 
-  /* Normalise paths to // or \, depending on whether
-     or not // was found in gdb_program_name. Do this
-     first as we will modify --with-python-path also. */
   extern char* gdb_program_name;
-  if (debug_this) fprintf(stderr,"gdb_program_name is %s\n",gdb_program_name);
-  gdb_program_name_n = concat(gdb_program_name,NULL);
-  if (strchr(gdb_program_name_n,'\\'))
-   {
-     slash_string[0] = '\\';
-     other_slash_string[0] = '/';
-   }
-  temp = strchr(gdb_program_name_n, other_slash_string[0]);
-  while (temp != NULL)
-   {
-     *temp = slash_string[0];
-     temp = strchr(temp, other_slash_string[0]);
-   }
+  char gdb_program_name_n[MAXPATHLEN];
+  strcpy(gdb_program_name_n, gdb_program_name);
+  get_absolute_executable_path(&gdb_program_name_n[0], sizeof(gdb_program_name_n));
+  if (debug_this) fprintf(stderr, "gdb_program_name_n is %s\n", gdb_program_name_n);
 #ifdef __MINGW32__
   /* Ensure drive letter is upper case. */
   if (strlen(gdb_program_name_n)>1 && gdb_program_name_n[1]==':')
@@ -1651,12 +1685,12 @@ void find_python_executable_and_pythonhome(char** python_executable,
     fprintf(stderr,"Clues are:\n");
     for (counter = 0; counter < n_clues; ++counter)
      {
-        fprintf(stderr,"clues[%d] is %s\n",counter,clues[counter]);
+        fprintf(stderr,"clues[%d] is %s\n",(int)counter,clues[counter]);
      }
    }
 
   /* For Android platform gdb, we use this clue to find the prebuilt python */
-  char *android_top = getenv("ANDROID_BUILD_TOP");
+  android_top = getenv("ANDROID_BUILD_TOP");
   if (android_top)
     {
       /* Android platform prebuilt python is at
@@ -1689,7 +1723,6 @@ void find_python_executable_and_pythonhome(char** python_executable,
      free(clues[counter]);
    }
   free(binexesuffix);
-  free(gdb_program_name_n);
 #undef PYTHON_EXE
 #undef OS_STAT
 }
