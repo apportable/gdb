@@ -41,11 +41,20 @@ enum mips_abi
 enum mips_abi mips_abi (struct gdbarch *gdbarch);
 
 /* Base and compressed MIPS ISA variations.  */
+enum mips_compression
+  {
+    COMPRESSION_MIPS = -1,		/* mips_compression_string depends on it.  */
+    COMPRESSION_MIPS16,
+    COMPRESSION_MICROMIPS,
+  };
+
+/* Base and compressed MIPS ISA variations.  */
 enum mips_isa
   {
-    ISA_MIPS = -1,		/* mips_compression_string depends on it.  */
+    ISA_MIPS = -1,
     ISA_MIPS16,
-    ISA_MICROMIPS
+    ISA_MICROMIPS,
+    ISA_MIPSR6
   };
 
 /* Return the MIPS ISA's register size.  Just a short cut to the BFD
@@ -88,6 +97,7 @@ struct gdbarch_tdep
   enum mips_abi mips_abi;
   enum mips_abi found_abi;
   enum mips_isa mips_isa;
+  enum mips_isa mips_compression;
   enum mips_fpu_type mips_fpu_type;
   int mips_last_arg_regnum;
   int mips_last_fp_arg_regnum;

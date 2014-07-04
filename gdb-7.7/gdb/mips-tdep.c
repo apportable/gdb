@@ -68,6 +68,8 @@ static int micromips_instruction_has_delay_slot (struct gdbarch *, CORE_ADDR,
 static int mips16_instruction_has_delay_slot (struct gdbarch *, CORE_ADDR,
 					      int);
 
+static void mips_read_fp_register_double (struct frame_info *frame, int regno,
+					  gdb_byte *rare_buffer);
 /* A useful bit in the CP0 status register (MIPS_PS_REGNUM).  */
 /* This bit is set if we are emulating 32-bit FPRs on a 64-bit chip.  */
 #define ST0_FR (1 << 26)
@@ -276,7 +278,7 @@ mips_abi_regsize (struct gdbarch *gdbarch)
 static int
 is_mips16_isa (struct gdbarch *gdbarch)
 {
-  return gdbarch_tdep (gdbarch)->mips_isa == ISA_MIPS16;
+  return gdbarch_tdep (gdbarch)->mips_compression == COMPRESSION_MIPS16;
 }
 
 /* Return one iff compressed code is the microMIPS instruction set.  */
@@ -284,7 +286,15 @@ is_mips16_isa (struct gdbarch *gdbarch)
 static int
 is_micromips_isa (struct gdbarch *gdbarch)
 {
-  return gdbarch_tdep (gdbarch)->mips_isa == ISA_MICROMIPS;
+  return gdbarch_tdep (gdbarch)->mips_compression == COMPRESSION_MICROMIPS;
+}
+
+/* Return one iff code is the MIPSR6 instruction set.  */
+
+static int
+is_mipsr6_isa (struct gdbarch *gdbarch)
+{
+  return gdbarch_tdep (gdbarch)->mips_isa == ISA_MIPSR6;
 }
 
 /* Return one iff ADDR denotes compressed code.  */
@@ -1192,12 +1202,12 @@ mips_pc_isa (struct gdbarch *gdbarch, CORE_ADDR memaddr)
       else if (msymbol_is_mips16 (sym.minsym))
 	return ISA_MIPS16;
       else
-	return ISA_MIPS;
+	return ((is_mipsr6_isa (gdbarch)) ? ISA_MIPSR6 : ISA_MIPS);
     }
   else
     {
       if (is_mips_addr (memaddr))
-	return ISA_MIPS;
+	return ((is_mipsr6_isa (gdbarch)) ? ISA_MIPSR6 : ISA_MIPS);
       else if (is_micromips_addr (gdbarch, memaddr))
 	return ISA_MICROMIPS;
       else
@@ -1343,6 +1353,7 @@ mips_fetch_instruction (struct gdbarch *gdbarch,
       instlen = MIPS_INSN16_SIZE;
       addr = unmake_compact_addr (addr);
       break;
+    case ISA_MIPSR6:
     case ISA_MIPS:
       instlen = MIPS_INSN32_SIZE;
       break;
@@ -1368,6 +1379,7 @@ mips_fetch_instruction (struct gdbarch *gdbarch,
 #define itype_rs(x) ((x >> 21) & 0x1f)
 #define itype_rt(x) ((x >> 16) & 0x1f)
 #define itype_immediate(x) (x & 0xffff)
+#define itype_mipsr6(x) (x & 0xfc00003f)
 
 #define jtype_op(x) (x >> 26)
 #define jtype_target(x) (x & 0x03ffffff)
@@ -1430,6 +1442,7 @@ mips_insn_size (enum mips_isa isa, ULONGEST insn)
 	return 2 * MIPS_INSN16_SIZE;
       else
 	return MIPS_INSN16_SIZE;
+    case ISA_MIPSR6:
     case ISA_MIPS:
 	return MIPS_INSN32_SIZE;
     }
@@ -1510,7 +1523,10 @@ mips32_next_pc (struct frame_info *frame, CORE_ADDR pc)
   struct gdbarch *gdbarch = get_frame_arch (frame);
   unsigned long inst;
   int op;
-  inst = mips_fetch_instruction (gdbarch, ISA_MIPS, pc, NULL);
+  if (is_mipsr6_isa (gdbarch))
+    inst = mips_fetch_instruction (gdbarch, ISA_MIPSR6, pc, NULL);
+  else
+    inst = mips_fetch_instruction (gdbarch, ISA_MIPS, pc, NULL);
   op = itype_op (inst);
   if ((inst & 0xe0000000) != 0)		/* Not a special, jump or branch
 					   instruction.  */
@@ -1532,6 +1548,46 @@ mips32_next_pc (struct frame_info *frame, CORE_ADDR pc)
 	      pc += 4;
 	    }
 	}
+      /* BC1EQZ.  This code will need checking when SEL.D is output
+         from the compiler.  */
+      else if (is_mipsr6_isa (gdbarch) && op == 17 && itype_rs (inst) == 9)
+	{
+	  gdb_byte status;
+	  gdb_byte *raw_buffer = alloca (sizeof (gdb_byte) * 8);
+	  mips_read_fp_register_double (frame, itype_rt (inst) +
+					gdbarch_num_regs (gdbarch) +
+					mips_regnum (gdbarch)->fp0,
+					raw_buffer);
+	  if (gdbarch_byte_order (gdbarch) == BFD_ENDIAN_BIG)
+	    status = *(raw_buffer + 7);
+	  else
+	    status = *(raw_buffer);
+
+	  if ((status & 0x1) == 0)
+	    pc += mips32_relative_offset (inst) + 4;
+	  else
+	    pc += 8;
+	}
+      /* BC1NEZ.  This code will need checking when SEL.D is output
+         from the compiler.  */
+      else if (is_mipsr6_isa (gdbarch) && op == 17 && itype_rs (inst) == 13)
+	{
+	  gdb_byte status;
+	  gdb_byte *raw_buffer = alloca (sizeof (gdb_byte) * 8);
+	  mips_read_fp_register_double (frame, itype_rt (inst) +
+					gdbarch_num_regs (gdbarch) +
+					mips_regnum (gdbarch)->fp0,
+					raw_buffer);
+	  if (gdbarch_byte_order (gdbarch) == BFD_ENDIAN_BIG)
+	    status = *(raw_buffer + 7);
+	  else
+	    status = *(raw_buffer);
+
+	  if ((status & 0x1) == 1)
+	    pc += mips32_relative_offset (inst) + 4;
+	  else
+	    pc += 8;
+	}
       else if (op == 17 && itype_rs (inst) == 8)
 	/* BC1F, BC1FL, BC1T, BC1TL: 010001 01000 */
 	pc = mips32_bc1_pc (gdbarch, frame, inst, pc + 4, 1);
@@ -1543,7 +1599,7 @@ mips32_next_pc (struct frame_info *frame, CORE_ADDR pc)
 	       && (itype_rt (inst) & 2) == 0)
 	/* BC1ANY4F, BC1ANY4T: 010001 01010 xxx0x */
 	pc = mips32_bc1_pc (gdbarch, frame, inst, pc + 4, 4);
-      else if (op == 29)
+      else if (!is_mipsr6_isa (gdbarch) && op == 29)
 	/* JALX: 011101 */
 	/* The new PC will be alternate mode.  */
 	{
@@ -3236,8 +3292,12 @@ restart:
       int reg;
 
       /* Fetch the instruction.  */
-      inst = (unsigned long) mips_fetch_instruction (gdbarch, ISA_MIPS,
-						     cur_pc, NULL);
+      if (is_mipsr6_isa (gdbarch))
+        inst = (unsigned long) mips_fetch_instruction (gdbarch, ISA_MIPSR6,
+						       cur_pc, NULL);
+      else
+        inst = (unsigned long) mips_fetch_instruction (gdbarch, ISA_MIPS,
+						       cur_pc, NULL);
 
       /* Save some code by pre-extracting some useful fields.  */
       high_word = (inst >> 16) & 0xffff;
@@ -3245,7 +3305,8 @@ restart:
       reg = high_word & 0x1f;
 
       if (high_word == 0x27bd		/* addiu $sp,$sp,-i */
-	  || high_word == 0x23bd	/* addi $sp,$sp,-i */
+	  || ((high_word == 0x23bd)	/* addi $sp,$sp,-i */
+	      && !is_mipsr6_isa (gdbarch))
 	  || high_word == 0x67bd)	/* daddiu $sp,$sp,-i */
 	{
 	  if (low_word & 0x8000)	/* Negative stack adjustment?  */
@@ -3688,6 +3749,10 @@ mips_addr_bits_remove (struct gdbarch *gdbarch, CORE_ADDR addr)
 #define LLD_OPCODE 0x34
 #define SC_OPCODE 0x38
 #define SCD_OPCODE 0x3c
+#define LL_R6_OPCODE 0x7c000036
+#define LLD_R6_OPCODE 0x7c000037
+#define SC_R6_OPCODE 0x7c000026
+#define SCD_R6_OPCODE 0x7c000027
 
 static int
 mips_deal_with_atomic_sequence (struct gdbarch *gdbarch,
@@ -3701,10 +3766,19 @@ mips_deal_with_atomic_sequence (struct gdbarch *gdbarch,
   int index;
   int last_breakpoint = 0; /* Defaults to 0 (no breakpoints placed).  */  
   const int atomic_sequence_length = 16; /* Instruction sequence length.  */
+  int is_mipsr6 = is_mipsr6_isa (gdbarch);
 
-  insn = mips_fetch_instruction (gdbarch, ISA_MIPS, loc, NULL);
+  if (is_mipsr6)
+    insn = mips_fetch_instruction (gdbarch, ISA_MIPSR6, loc, NULL);
+  else
+    insn = mips_fetch_instruction (gdbarch, ISA_MIPS, loc, NULL);
   /* Assume all atomic sequences start with a ll/lld instruction.  */
-  if (itype_op (insn) != LL_OPCODE && itype_op (insn) != LLD_OPCODE)
+  if (((!is_mipsr6) && itype_op (insn) != LL_OPCODE
+        && itype_op (insn) != LLD_OPCODE)
+      || ((is_mipsr6) && itype_op (insn) != LL_OPCODE
+	  && itype_op (insn) != LLD_OPCODE
+	  && itype_mipsr6 (insn) != LL_R6_OPCODE
+	  && itype_mipsr6 (insn) != LLD_R6_OPCODE))
     return 0;
 
   /* Assume that no atomic sequence is longer than "atomic_sequence_length" 
@@ -3713,7 +3787,10 @@ mips_deal_with_atomic_sequence (struct gdbarch *gdbarch,
     {
       int is_branch = 0;
       loc += MIPS_INSN32_SIZE;
-      insn = mips_fetch_instruction (gdbarch, ISA_MIPS, loc, NULL);
+      if (is_mipsr6)
+        insn = mips_fetch_instruction (gdbarch, ISA_MIPSR6, loc, NULL);
+      else
+        insn = mips_fetch_instruction (gdbarch, ISA_MIPS, loc, NULL);
 
       /* Assume that there is at most one branch in the atomic
 	 sequence.  If a branch is found, put a breakpoint in its
@@ -3743,14 +3820,20 @@ mips_deal_with_atomic_sequence (struct gdbarch *gdbarch,
 	  is_branch = 1;
 	  break;
 	case 17: /* COP1 */
-	  is_branch = ((itype_rs (insn) == 9 || itype_rs (insn) == 10)
-		       && (itype_rt (insn) & 0x2) == 0);
-	  if (is_branch) /* BC1ANY2F, BC1ANY2T, BC1ANY4F, BC1ANY4T */
+	  is_branch = (((itype_rs (insn) == 9 || itype_rs (insn) == 10)
+			 && (itype_rt (insn) & 0x2) == 0)
+		      || (is_mipsr6 && (itype_rs (insn) == 9
+					|| itype_rs (insn) == 13)));
+	  if (is_branch) /* BC1ANY2F, BC1ANY2T, BC1ANY4F, BC1ANY4T
+			    BC1EQZ, BC1NEZ */
 	    break;
 	/* Fall through.  */
 	case 18: /* COP2 */
 	case 19: /* COP3 */
-	  is_branch = (itype_rs (insn) == 8); /* BCzF, BCzFL, BCzT, BCzTL */
+			/* BCzF, BCzFL, BCzT, BCzTL, BC*EQZ, BC*NEZ */
+	  is_branch = (itype_rs (insn) == 8
+		       || (is_mipsr6 && (itype_rs (insn) == 9
+					 || itype_rs (insn) == 13)));
 	  break;
 	}
       if (is_branch)
@@ -3763,12 +3846,19 @@ mips_deal_with_atomic_sequence (struct gdbarch *gdbarch,
 	  last_breakpoint++;
 	}
 
-      if (itype_op (insn) == SC_OPCODE || itype_op (insn) == SCD_OPCODE)
+      if (itype_op (insn) == SC_OPCODE || itype_op (insn) == SCD_OPCODE
+	  || ((is_mipsr6) && (itype_mipsr6 (insn) == SC_R6_OPCODE
+	       || itype_mipsr6 (insn) == SCD_R6_OPCODE)))
 	break;
     }
 
   /* Assume that the atomic sequence ends with a sc/scd instruction.  */
-  if (itype_op (insn) != SC_OPCODE && itype_op (insn) != SCD_OPCODE)
+  if (((!is_mipsr6) && itype_op (insn) != SC_OPCODE
+        && itype_op (insn) != SCD_OPCODE)
+      || ((is_mipsr6) && itype_op (insn) != SC_OPCODE
+	  && itype_op (insn) != SCD_OPCODE
+	  && itype_mipsr6 (insn) != SC_R6_OPCODE
+	  && itype_mipsr6 (insn) != SCD_R6_OPCODE))
     return 0;
 
   loc += MIPS_INSN32_SIZE;
@@ -3995,9 +4085,17 @@ mips_about_to_return (struct gdbarch *gdbarch, CORE_ADDR pc)
      called for MIPS16 functions.  And likewise microMIPS ones.  */
   gdb_assert (mips_pc_is_mips (pc));
 
-  insn = mips_fetch_instruction (gdbarch, ISA_MIPS, pc, NULL);
+  if (is_mipsr6_isa (gdbarch))
+    insn = mips_fetch_instruction (gdbarch, ISA_MIPSR6, pc, NULL);
+  else
+    insn = mips_fetch_instruction (gdbarch, ISA_MIPS, pc, NULL);
   hint = 0x7c0;
-  return (insn & ~hint) == 0x3e00008;			/* jr(.hb) $ra */
+  /* Seek for "jr(.hb) $ra" in all variants. */
+  if (is_mipsr6_isa (gdbarch))
+    /* jr(.hb) $ra and "jalr(.hb) $ra" for ISA6*/
+    return (((insn & ~hint) == 0x3e00008) || ((insn & ~hint) == 0x3e00009));
+  else
+    return ((insn & ~hint) == 0x3e00008);     /* jr(.hb) $ra */
 }
 
 
@@ -6459,12 +6557,18 @@ mips32_in_function_epilogue_p (struct gdbarch *gdbarch, CORE_ADDR pc)
 	  unsigned long high_word;
 	  unsigned long inst;
 
-	  inst = mips_fetch_instruction (gdbarch, ISA_MIPS, pc, NULL);
+	  if (is_mipsr6_isa (gdbarch))
+	    inst = mips_fetch_instruction (gdbarch, ISA_MIPSR6, pc, NULL);
+	  else
+	    inst = mips_fetch_instruction (gdbarch, ISA_MIPS, pc, NULL);
 	  high_word = (inst >> 16) & 0xffff;
 
 	  if (high_word != 0x27bd	/* addiu $sp,$sp,offset */
 	      && high_word != 0x67bd	/* daddiu $sp,$sp,offset */
-	      && inst != 0x03e00008	/* jr $ra */
+	      && ((is_mipsr6_isa (gdbarch) && inst != 0x03e00008
+                   && inst != 0x03e00009)
+		     /* jr $ra */
+		 || (!is_mipsr6_isa (gdbarch) && inst != 0x03e00008))
 	      && inst != 0x00000000)	/* nop */
 	    return 0;
 	}
@@ -6790,12 +6894,17 @@ gdb_print_insn_mips (bfd_vma memaddr, struct disassemble_info *info)
 
   /* Set the disassembler options.  */
   if (!info->disassembler_options)
+    {
     /* This string is not recognized explicitly by the disassembler,
        but it tells the disassembler to not try to guess the ABI from
        the bfd elf headers, such that, if the user overrides the ABI
        of a program linked as NewABI, the disassembly will follow the
        register naming conventions specified by the user.  */
-    info->disassembler_options = "gpr-names=32";
+      if (is_mipsr6_isa (gdbarch))
+	info->disassembler_options = "gpr-names=32,dis-both-r5-and-r6=1";
+      else
+	info->disassembler_options = "gpr-names=32";
+    }
 
   /* Call the appropriate disassembler based on the target endian-ness.  */
   if (info->endian == BFD_ENDIAN_BIG)
@@ -6809,7 +6918,10 @@ gdb_print_insn_mips_n32 (bfd_vma memaddr, struct disassemble_info *info)
 {
   /* Set up the disassembler info, so that we get the right
      register names from libopcodes.  */
-  info->disassembler_options = "gpr-names=n32";
+  if (is_mipsr6_isa (info->application_data))
+    info->disassembler_options = "gpr-names=n32,dis-both-r5-and-r6=1";
+  else
+    info->disassembler_options = "gpr-names=n32";
   info->flavour = bfd_target_elf_flavour;
 
   return gdb_print_insn_mips (memaddr, info);
@@ -6820,7 +6932,10 @@ gdb_print_insn_mips_n64 (bfd_vma memaddr, struct disassemble_info *info)
 {
   /* Set up the disassembler info, so that we get the right
      register names from libopcodes.  */
-  info->disassembler_options = "gpr-names=64";
+  if (is_mipsr6_isa (info->application_data))
+    info->disassembler_options = "gpr-names=64,dis-both-r5-and-r6=1";
+  else
+    info->disassembler_options = "gpr-names=64";
   info->flavour = bfd_target_elf_flavour;
 
   return gdb_print_insn_mips (memaddr, info);
@@ -6985,7 +7100,10 @@ mips32_instruction_has_delay_slot (struct gdbarch *gdbarch, CORE_ADDR addr)
   int rs;
   int rt;
 
-  inst = mips_fetch_instruction (gdbarch, ISA_MIPS, addr, &status);
+  if (is_mipsr6_isa (gdbarch))
+    inst = mips_fetch_instruction (gdbarch, ISA_MIPSR6, addr, &status);
+  else
+    inst = mips_fetch_instruction (gdbarch, ISA_MIPS, addr, &status);
   if (status)
     return 0;
 
@@ -6996,14 +7114,21 @@ mips32_instruction_has_delay_slot (struct gdbarch *gdbarch, CORE_ADDR addr)
       rt = itype_rt (inst);
       return (is_octeon_bbit_op (op, gdbarch) 
 	      || op >> 2 == 5	/* BEQL, BNEL, BLEZL, BGTZL: bits 0101xx  */
-	      || op == 29	/* JALX: bits 011101  */
+	      || (!is_mipsr6_isa (gdbarch) && op == 29)	/* JALX: bits 011101  */
 	      || (op == 17
 		  && (rs == 8
 				/* BC1F, BC1FL, BC1T, BC1TL: 010001 01000  */
 		      || (rs == 9 && (rt & 0x2) == 0)
 				/* BC1ANY2F, BC1ANY2T: bits 010001 01001  */
-		      || (rs == 10 && (rt & 0x2) == 0))));
+		      || (rs == 10 && (rt & 0x2) == 0)))
 				/* BC1ANY4F, BC1ANY4T: bits 010001 01010  */
+              || (is_mipsr6_isa (gdbarch)
+                  && ((op == 17
+		      && (rs == 9  /* BC1EQZ: 010001 01001 */
+			  || rs == 13 /* BC1NEZ: 010001 01101*/ ))
+                     || (op == 18
+			 && (rs == 9 /* BC2EQZ: 010010 01001 */
+			     || rs == 13 /* BC2NEZ: 010010 01101*/ )))));
     }
   else
     switch (op & 0x07)		/* extract bits 28,27,26  */
@@ -7386,11 +7511,16 @@ mips_get_mips16_fn_stub_pc (struct frame_info *frame, CORE_ADDR pc)
        status == 0 && target_pc == 0 && i < 20;
        i++, pc += MIPS_INSN32_SIZE)
     {
-      ULONGEST inst = mips_fetch_instruction (gdbarch, ISA_MIPS, pc, NULL);
       CORE_ADDR imm;
+      ULONGEST inst;
       int rt;
       int rs;
       int rd;
+
+      if (is_mipsr6_isa (gdbarch))
+        inst = mips_fetch_instruction (gdbarch, ISA_MIPSR6, pc, NULL);
+      else
+        inst = mips_fetch_instruction (gdbarch, ISA_MIPS, pc, NULL);
 
       switch (itype_op (inst))
 	{
@@ -7864,14 +7994,14 @@ global_mips_abi (void)
    the ELF header of the binary being executed (or no binary has been
    selected.  */
 
-static enum mips_isa
+static enum mips_compression
 global_mips_compression (void)
 {
   int i;
 
   for (i = 0; mips_compression_strings[i] != NULL; i++)
     if (mips_compression_strings[i] == mips_compression_string)
-      return (enum mips_isa) i;
+      return (enum mips_compression) i;
 
   internal_error (__FILE__, __LINE__, _("unknown compressed ISA string"));
 }
@@ -7914,6 +8044,7 @@ mips_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
   const char **reg_names;
   struct mips_regnum mips_regnum, *regnum;
   enum mips_isa mips_isa;
+  enum mips_compression mips_compression;
   int dspacc;
   int dspctl;
 
@@ -8210,13 +8341,21 @@ mips_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
   /* Determine the default compressed ISA.  */
   if ((elf_flags & EF_MIPS_ARCH_ASE_MICROMIPS) != 0
       && (elf_flags & EF_MIPS_ARCH_ASE_M16) == 0)
-    mips_isa = ISA_MICROMIPS;
+    mips_compression = ISA_MICROMIPS;
   else if ((elf_flags & EF_MIPS_ARCH_ASE_M16) != 0
 	   && (elf_flags & EF_MIPS_ARCH_ASE_MICROMIPS) == 0)
-    mips_isa = ISA_MIPS16;
+    mips_compression = ISA_MIPS16;
   else
-    mips_isa = global_mips_compression ();
-  mips_compression_string = mips_compression_strings[mips_isa];
+    mips_compression = global_mips_compression ();
+  mips_compression_string = mips_compression_strings[mips_compression];
+
+  /* Determine the default ISA.  */
+  if (((elf_flags & EF_MIPS_ARCH) == E_MIPS_ARCH_32R6)
+      || ((elf_flags & EF_MIPS_ARCH) == E_MIPS_ARCH_64R6))
+    mips_isa = ISA_MIPSR6;
+    /* TODO: we should turn off/error if mips16 is uses here.  */
+  else
+    mips_isa = ISA_MIPS;
 
   /* Also used when doing an architecture lookup.  */
   if (gdbarch_debug)
@@ -8324,6 +8463,7 @@ mips_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
   tdep->found_abi = found_abi;
   tdep->mips_abi = mips_abi;
   tdep->mips_isa = mips_isa;
+  tdep->mips_compression = mips_compression;
   tdep->mips_fpu_type = fpu_type;
   tdep->register_size_valid_p = 0;
   tdep->register_size = 0;
