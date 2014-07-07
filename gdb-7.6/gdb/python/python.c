@@ -1532,7 +1532,7 @@ static char* last_n_folder_elements(char* input, char slash, size_t n_folders)
 }
 
 /* Either adds a new clue or frees it if already exists. */
-size_t add_clue(size_t n_so_far, char** clues, char* new_clue)
+static size_t add_clue(size_t n_so_far, char** clues, char* new_clue)
 {
   size_t counter;
   for (counter = 0; counter < n_so_far; ++counter)
