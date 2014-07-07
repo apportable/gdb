@@ -419,7 +419,14 @@ enum mips_operand_type {
   OP_IMM_INDEX,
 
   /* An index selected by a register, e.g. [$2].  */
-  OP_REG_INDEX
+  OP_REG_INDEX,
+
+  /* The operand spans two 5-bit register fields, both of which must be set to
+     the source register.  */
+  OP_SAME_RS_RT,
+
+  /* Described by mips_prev_operand.  */
+  OP_CHECK_PREV
 };
 
 /* Enumerates the types of MIPS register.  */
@@ -553,6 +560,20 @@ struct mips_reg_operand
   /* If nonnull, REG_MAP[N] gives the register associated with encoding N,
      otherwise the encoding is the same as the register number.  */
   const unsigned char *reg_map;
+};
+
+/* Describes an operand that which must match a condition based on the
+   previous operand.  */
+struct mips_check_prev_operand
+{
+  struct mips_operand root;
+
+  bfd_boolean check_less_than;
+  bfd_boolean check_greater_than;
+  bfd_boolean check_less_than_or_equal;
+  bfd_boolean check_greater_than_or_equal;
+  bfd_boolean check_not_equal;
+  bfd_boolean check_not_zero;
 };
 
 /* Describes an operand that encodes a pair of registers.  */
@@ -929,6 +950,28 @@ struct mips_opcode
    "+*" 5-bit register vector element index at bit 16
    "+|" 8-bit mask at bit 16
 
+   MIPS R6:
+   "+:" 11-bit mask at bit 0
+   "+'" 26 bit PC relative branch target address
+   "+"" 21 bit PC relative branch target address
+   "+;" 5 bit same register in both OP_*_RS and OP_*_RT
+   "+I" 2bit unsigned bit position at bit 6
+   "+O" 3bit unsigned bit position at bit 6
+   "+R" must be program counter
+   "-a" (-262144 .. 262143) << 2 at bit 0
+   "-b" (-131072 .. 131071) << 3 at bit 0
+   "-d" Same as destination register GP
+   "-s" 5 bit source register specifier (OP_*_RS) not $0
+   "-t" 5 bit source register specifier (OP_*_RT) not $0
+   "-u" 5 bit source register specifier (OP_*_RT) greater than OP_*_RS
+   "-v" 5 bit source register specifier (OP_*_RT) not $0 not OP_*_RS
+   "-w" 5 bit source register specifier (OP_*_RT) less than or equal to OP_*_RS
+   "-x" 5 bit source register specifier (OP_*_RT) greater than or
+        equal to OP_*_RS
+   "-y" 5 bit source register specifier (OP_*_RT) not $0 less than OP_*_RS
+   "-A" symbolic offset (-262144 .. 262143) << 2 at bit 0
+   "-B" symbolic offset (-131072 .. 131071) << 3 at bit 0
+
    Other:
    "()" parens surrounding optional value
    ","  separates operands
@@ -936,16 +979,21 @@ struct mips_opcode
 
    Characters used so far, for quick reference when adding more:
    "1234567890"
-   "%[]<>(),+:'@!#$*&\~"
+   "%[]<>(),+-:'@!#$*&\~"
    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
    "abcdefghijklopqrstuvwxz"
 
    Extension character sequences used so far ("+" followed by the
    following), for quick reference when adding more:
    "1234567890"
-   "~!@#$%^&*|"
-   "ABCEFGHJKLMNPQSTUVWXZ"
+   "~!@#$%^&*|:'";"
+   "ABCEFGHIJKLMNOPQRSTUVWXZ"
    "abcdefghijklmnopqrstuvwxyz"
+
+   Extension character sequences used so far ("-" followed by the
+   following), for quick reference when adding more:
+   "AB"
+   "abdstuvwxy"
 */
 
 /* These are the bits which may be set in the pinfo field of an
@@ -1012,6 +1060,8 @@ struct mips_opcode
 #define INSN_WRITE_GPR_24           0x10000000
 /* A user-defined instruction.  */
 #define INSN_UDI                    0x20000000
+/* Is mtc1, mfc1, swc1, lwc1.  */
+#define INSN_FP_32_MOVE		    0x40000000
 /* Instruction is actually a macro.  It should be ignored by the
    disassembler, and requires special treatment by the assembler.  */
 #define INSN_MACRO                  0xffffffff
@@ -1053,6 +1103,8 @@ struct mips_opcode
 #define INSN2_READ_GPR_16           0x00002000
 /* Has an "\.x?y?z?w?" suffix based on mips_vu0_channel_mask.  */
 #define INSN2_VU0_CHANNEL_SUFFIX    0x00004000
+/* Instruction has a forbidden slot.  */
+#define INSN2_FORBIDDEN_SLOT        0x00008000
 
 /* Masks used to mark instructions to indicate which MIPS ISA level
    they were introduced in.  INSN_ISA_MASK masks an enumeration that
@@ -1060,7 +1112,7 @@ struct mips_opcode
    word constructed using these macros is a bitmask of the remaining
    INSN_* values below.  */
 
-#define INSN_ISA_MASK		  0x0000000ful
+#define INSN_ISA_MASK		  0x0000001ful
 
 /* We cannot start at zero due to ISA_UNKNOWN below.  */
 #define INSN_ISA1                 1
@@ -1070,28 +1122,75 @@ struct mips_opcode
 #define INSN_ISA5                 5
 #define INSN_ISA32                6
 #define INSN_ISA32R2              7
-#define INSN_ISA64                8
-#define INSN_ISA64R2              9
+#define INSN_ISA32R3              8
+#define INSN_ISA32R5              9
+#define INSN_ISA32R6              10
+#define INSN_ISA64                11 
+#define INSN_ISA64R2              12
+#define INSN_ISA64R3              13
+#define INSN_ISA64R5              14
+#define INSN_ISA64R6              15
 /* Below this point the INSN_* values correspond to combinations of ISAs.
    They are only for use in the opcodes table to indicate membership of
    a combination of ISAs that cannot be expressed using the usual inclusion
    ordering on the above INSN_* values.  */
-#define INSN_ISA3_32              10
-#define INSN_ISA3_32R2            11
-#define INSN_ISA4_32              12
-#define INSN_ISA4_32R2            13
-#define INSN_ISA5_32R2            14
+#define INSN_ISA3_32              16
+#define INSN_ISA3_32R2            17
+#define INSN_ISA4_32              18
+#define INSN_ISA4_32R2            19
+#define INSN_ISA5_32R2            20
 
-/* Given INSN_ISA* values X and Y, where X ranges over INSN_ISA1 through
-   INSN_ISA5_32R2 and Y ranges over INSN_ISA1 through INSN_ISA64R2,
-   this table describes whether at least one of the ISAs described by X
-   is/are implemented by ISA Y.  (Think of Y as the ISA level supported by
-   a particular core and X as the ISA level(s) at which a certain instruction
-   is defined.)  The ISA(s) described by X is/are implemented by Y iff
-   (mips_isa_table[(Y & INSN_ISA_MASK) - 1] >> ((X & INSN_ISA_MASK) - 1)) & 1
-   is non-zero.  */
-static const unsigned int mips_isa_table[] =
-  { 0x0001, 0x0003, 0x0607, 0x1e0f, 0x3e1f, 0x0a23, 0x3e63, 0x3ebf, 0x3fff };
+/* The R6 definitions shown below state that they support all previous ISAs.
+   This is not actually true as some instructions are removed in R6.
+   The problem is that the removed instructions in R6 come from different
+   ISAs.  One approach to solve this would be to describe in the membership
+   field of the opcode table the different ISAs an instruction belongs to.
+   This would require us to create a large amount of different ISA
+   combinations which is hard to manage.  A cleaner approach (which is
+   implemented here) is to say that R6 is an extension of R5 and then to
+   deal with the removed instructions by adding instruction exclusions
+   for R6 in the opcode table.  */
+
+/* Bit INSN_ISA<X> - 1 of INSN_UPTO<Y> is set if ISA Y includes ISA X.  */
+
+#define ISAF(X) (1 << (INSN_ISA##X - 1))
+#define INSN_UPTO1    ISAF(1)
+#define INSN_UPTO2    INSN_UPTO1 | ISAF(2)
+#define INSN_UPTO3    INSN_UPTO2 | ISAF(3) | ISAF(3_32) | ISAF(3_32R2)
+#define INSN_UPTO4    INSN_UPTO3 | ISAF(4) | ISAF(4_32) | ISAF(4_32R2)
+#define INSN_UPTO5    INSN_UPTO4 | ISAF(5) | ISAF(5_32R2)
+#define INSN_UPTO32   INSN_UPTO2 | ISAF(32) | ISAF(3_32) | ISAF(4_32)
+#define INSN_UPTO32R2 INSN_UPTO32 | ISAF(32R2) \
+			| ISAF(3_32R2) | ISAF(4_32R2) | ISAF(5_32R2)
+#define INSN_UPTO32R3 INSN_UPTO32R2 | ISAF(32R3)
+#define INSN_UPTO32R5 INSN_UPTO32R3 | ISAF(32R5)
+#define INSN_UPTO32R6 INSN_UPTO32R5 | ISAF(32R6)
+#define INSN_UPTO64   INSN_UPTO5 | ISAF(64) | ISAF(32)
+#define INSN_UPTO64R2 INSN_UPTO64 | ISAF(64R2) | ISAF(32R2)
+#define INSN_UPTO64R3 INSN_UPTO64R2 | ISAF(64R3) | ISAF(32R3)
+#define INSN_UPTO64R5 INSN_UPTO64R3 | ISAF(64R5) | ISAF(32R5)
+#define INSN_UPTO64R6 INSN_UPTO64R5 | ISAF(64R6) | ISAF(32R6)
+
+/* The same information in table form: bit INSN_ISA<X> - 1 of index
+   INSN_UPTO<Y> - 1 is set if ISA Y includes ISA X.  */
+static const unsigned int mips_isa_table[] = {
+  INSN_UPTO1,
+  INSN_UPTO2,
+  INSN_UPTO3,
+  INSN_UPTO4,
+  INSN_UPTO5,
+  INSN_UPTO32,
+  INSN_UPTO32R2,
+  INSN_UPTO32R3,
+  INSN_UPTO32R5,
+  INSN_UPTO32R6,
+  INSN_UPTO64,
+  INSN_UPTO64R2,
+  INSN_UPTO64R3,
+  INSN_UPTO64R5,
+  INSN_UPTO64R6
+};
+#undef ISAF
 
 /* Masks used for Chip specific instructions.  */
 #define INSN_CHIP_MASK		  0xc3ff0f20
@@ -1157,6 +1256,8 @@ static const unsigned int mips_isa_table[] =
 /* MSA Extension  */
 #define ASE_MSA			0x00000800
 #define ASE_MSA64		0x00001000
+/* eXtended Physical Address (XPA) Extension.  */
+#define ASE_XPA			0x00002000
 
 /* MIPS ISA defines, use instead of hardcoding ISA level.  */
 
@@ -1171,8 +1272,14 @@ static const unsigned int mips_isa_table[] =
 #define       ISA_MIPS64      INSN_ISA64
 
 #define       ISA_MIPS32R2    INSN_ISA32R2
+#define       ISA_MIPS32R3    INSN_ISA32R3
+#define       ISA_MIPS32R5    INSN_ISA32R5
 #define       ISA_MIPS64R2    INSN_ISA64R2
+#define       ISA_MIPS64R3    INSN_ISA64R3
+#define       ISA_MIPS64R5    INSN_ISA64R5
 
+#define       ISA_MIPS32R6    INSN_ISA32R6
+#define       ISA_MIPS64R6    INSN_ISA64R6
 
 /* CPU defines, use instead of hardcoding processor number. Keep this
    in sync with bfd/archures.c in order for machine selection to work.  */
@@ -1203,9 +1310,15 @@ static const unsigned int mips_isa_table[] =
 #define CPU_MIPS16	16
 #define CPU_MIPS32	32
 #define CPU_MIPS32R2	33
+#define CPU_MIPS32R3	34
+#define CPU_MIPS32R5	36
+#define CPU_MIPS32R6	37
 #define CPU_MIPS5       5
 #define CPU_MIPS64      64
 #define CPU_MIPS64R2	65
+#define CPU_MIPS64R3	66
+#define CPU_MIPS64R5	68
+#define CPU_MIPS64R6	69
 #define CPU_SB1         12310201        /* octal 'SB', 01.  */
 #define CPU_LOONGSON_2E 3001
 #define CPU_LOONGSON_2F 3002
@@ -1280,6 +1393,13 @@ cpu_is_member (int cpu, unsigned int mask)
 
     case CPU_XLR:
       return (mask & INSN_XLR) != 0;
+
+    case CPU_MIPS32R6:
+      return (mask & INSN_ISA_MASK) == INSN_ISA32R6;
+
+    case CPU_MIPS64R6:
+      return ((mask & INSN_ISA_MASK) == INSN_ISA32R6)
+	     || ((mask & INSN_ISA_MASK) == INSN_ISA64R6);
 
     default:
       return FALSE;
@@ -2121,7 +2241,7 @@ extern const int bfd_mips16_num_opcodes;
 
    Characters used so far, for quick reference when adding more:
    "12345678 0"
-   "<>(),+.@\^|~"
+   "<>(),+-.@\^|~"
    "ABCDEFGHI KLMN   RST V    "
    "abcd f hijklmnopqrstuvw yz"
 
@@ -2138,6 +2258,12 @@ extern const int bfd_mips16_num_opcodes;
    ""
    " BCDEFGHIJ LMNOPQ   U WXYZ"
    " bcdefghij lmn pq st   xyz"
+
+   Extension character sequences used so far ("-" followed by the
+   following), for quick reference when adding more:
+   ""
+   ""
+   <none so far>
 */
 
 extern const struct mips_operand *decode_micromips_operand (const char *);

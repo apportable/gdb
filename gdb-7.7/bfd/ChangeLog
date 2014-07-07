@@ -1,3 +1,55 @@
+2014-05-07  Andrew Bennett  <andrew.bennett@imgtec.com>
+
+	* aoutx.h (NAME (aout, machine_type)): Add mips32r3, mips64r3,
+	mips32r5 and mips64r5.
+	* archures.c (bfd_architecture): Likewise.
+	* bfd-in2.h (bfd_architecture): Likewise.
+	* cpu-mips.c (arch_info_struct): Likewise.
+	* elfxx-mips.c (mips_set_isa_flags): Likewise.
+
+2014-05-06  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* elfxx-mips.h (elfxx-mips.h): Declare.
+	* elfxx-mips.c (mips_elf_merge_obj_attributes): Use it to report
+	Tag_GNU_MIPS_ABI_FP mismatches.
+	(_bfd_mips_fp_abi_string): New function.
+
+2014-04-17  Kwok Cheung Yeung  <kcy@codesourcery.com>
+
+	* elfxx-mips.c (struct mips_got_info): Delete assigned_gotno
+	field.  Add assigned_low_gotno and assigned_high_gotno fields.
+	(mips_elf_create_local_got_entry): Update out-of-space condition.
+	Set index of new GOT entry to assigned_low_gotno if required by
+	the current relocation, else set it to assigned_high_gotno.
+	(mips_elf_set_global_gotidx): Replace uses of assigned_gotno
+	with assigned_low_gotno.
+	(mips_elf_multi_got): Initialize assigned_low_gotno and
+	assigned_high_gotno in secondary GOTs.  Use assigned_low_gotno
+	in place of assigned_gotno when handling global GOT entries.
+	(mips_elf_lay_out_got): Initialize assigned_low_gotno and
+	assigned_high_gotno.
+	(_bfd_mips_elf_finish_dynamic_sections): Account for a possible
+	gap in the middle of local GOT space.
+
+2014-03-04  Heiher <r@hev.cc>
+
+	* elfxx-mips.c (mips_set_isa_flags): Use E_MIPS_ARCH_64R2 for
+	Loongson-3A.
+	(mips_mach_extensions): Make bfd_mach_mips_loongson_3a an
+	extension of bfd_mach_mipsisa64r2.
+
+2014-02-18  Jack Carter  <jack.carter@imgtec.com>
+
+        * elfxx-mips.c(_bfd_mips_elf_modify_segment_map): Deleted hard coding of
+        PT_DYNAMIC segment flags.
+
+2014-01-16  Alan Modra  <amodra@gmail.com>
+
+	* elfxx-mips.c (mips_elf_record_got_page_entry): Pass in a
+	mips_elf_traverse_got_arg* rather than mips_got_info*.
+	Adjust caller.  Alloc on output_bfd rather than symbol section
+	owner.
+
 2014-01-07  Tom Tromey  <tromey@redhat.com>
 
 	* elf32-xtensa.c (vsprint_msg): Don't use old VA_* compatibility
