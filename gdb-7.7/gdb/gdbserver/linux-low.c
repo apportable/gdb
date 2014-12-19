@@ -47,7 +47,7 @@
 #include "filestuff.h"
 #include "tracepoint.h"
 #include "hostio.h"
-#ifndef ELFMAG0
+#if !defined (ELFMAG0) || (defined(__ANDROID__) && defined (__mips__))
 /* Don't include <linux/elf.h> here.  If it got included by gdb_proc_service.h
    then ELFMAG0 will have been defined.  If it didn't get included by
    gdb_proc_service.h then including it will likely introduce a duplicate
@@ -112,7 +112,7 @@
    in the autoconf stage. So config.h suggests the system contains
    HAVE_ELF32_AUXV_T and HAVE_ELF64_AUXV_T but we need the workaround for
    Android. */
-#if defined(__ANDROID__) || !defined(HAVE_ELF32_AUXV_T)
+#if (defined(__ANDROID__) && !defined (__mips__)) || !defined(HAVE_ELF32_AUXV_T)
 /* Copied from glibc's elf.h.  */
 typedef struct
 {
@@ -127,7 +127,7 @@ typedef struct
 } Elf32_auxv_t;
 #endif
 
-#if defined(__ANDROID__) || !defined(HAVE_ELF64_AUXV_T)
+#if (defined(__ANDROID__) && !defined (__mips__)) || !defined(HAVE_ELF64_AUXV_T)
 /* Copied from glibc's elf.h.  */
 typedef struct
 {
@@ -5381,14 +5381,15 @@ get_r_debug (const int pid, const int is_elf64)
       if (is_elf64)
 	{
 	  Elf64_Dyn *const dyn = (Elf64_Dyn *) buf;
-#ifdef DT_MIPS_RLD_MAP
+#if defined DT_MIPS_RLD_MAP || defined DT_MIPS_RLD_MAP2
 	  union
 	    {
 	      Elf64_Xword map;
 	      unsigned char buf[sizeof (Elf64_Xword)];
 	    }
 	  rld_map;
-
+#endif
+#ifdef DT_MIPS_RLD_MAP
 	  if (dyn->d_tag == DT_MIPS_RLD_MAP)
 	    {
 	      if (linux_read_memory (dyn->d_un.d_val,
@@ -5398,6 +5399,16 @@ get_r_debug (const int pid, const int is_elf64)
 		break;
 	    }
 #endif	/* DT_MIPS_RLD_MAP */
+#ifdef DT_MIPS_RLD_MAP2
+	  if (dyn->d_tag == DT_MIPS_RLD_MAP2)
+	    {
+	      if (linux_read_memory (dyn->d_un.d_val + dynamic_memaddr,
+				     rld_map.buf, sizeof (rld_map.buf)) == 0)
+		return rld_map.map;
+	      else
+		break;
+	    }
+#endif	/* DT_MIPS_RLD_MAP2 */
 
 	  if (dyn->d_tag == DT_DEBUG && map == -1)
 	    map = dyn->d_un.d_val;
@@ -5408,14 +5419,15 @@ get_r_debug (const int pid, const int is_elf64)
       else
 	{
 	  Elf32_Dyn *const dyn = (Elf32_Dyn *) buf;
-#ifdef DT_MIPS_RLD_MAP
+#if defined DT_MIPS_RLD_MAP || defined DT_MIPS_RLD_MAP2
 	  union
 	    {
 	      Elf32_Word map;
 	      unsigned char buf[sizeof (Elf32_Word)];
 	    }
 	  rld_map;
-
+#endif
+#ifdef DT_MIPS_RLD_MAP
 	  if (dyn->d_tag == DT_MIPS_RLD_MAP)
 	    {
 	      if (linux_read_memory (dyn->d_un.d_val,
@@ -5425,6 +5437,16 @@ get_r_debug (const int pid, const int is_elf64)
 		break;
 	    }
 #endif	/* DT_MIPS_RLD_MAP */
+#ifdef DT_MIPS_RLD_MAP2
+	  if (dyn->d_tag == DT_MIPS_RLD_MAP2)
+	    {
+	      if (linux_read_memory (dyn->d_un.d_val + dynamic_memaddr,
+				     rld_map.buf, sizeof (rld_map.buf)) == 0)
+		return rld_map.map;
+	      else
+		break;
+	    }
+#endif	/* DT_MIPS_RLD_MAP2 */
 
 	  if (dyn->d_tag == DT_DEBUG && map == -1)
 	    map = dyn->d_un.d_val;
