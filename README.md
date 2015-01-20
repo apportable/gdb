@@ -3,6 +3,8 @@ Apportable gdb
 
 Apportable gdb is a fork of the [Android NDK gdb](https://android.googlesource.com/toolchain/gdb/). It also includes patches from the [Fennec Android fork of gdb](https://github.com/darchons/android-gdb)
 
+The primary differentiator of the Apportable gdb fork is the addition of Objective C debugging support.
+
 
 Building Production Version of gdb
 ----------------------------------
