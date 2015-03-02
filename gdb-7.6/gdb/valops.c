@@ -1014,6 +1014,7 @@ value_fetch_lazy (struct value *val)
 	read_value_memory (val, 0, value_stack (val),
 			   addr, value_contents_all_raw (val),
 			   TYPE_LENGTH (type));
+      }
     }
   else if (VALUE_LVAL (val) == lval_register)
     {
