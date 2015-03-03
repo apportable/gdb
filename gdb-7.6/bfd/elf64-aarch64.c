@@ -3216,6 +3216,7 @@ bfd_elf64_aarch64_set_options (struct bfd *output_bfd,
 
 #define MASK(n) ((1u << (n)) - 1)
 
+#ifdef APPORTABLE_NOT_USING_WERROR_UNUSED
 /* Decode the 26-bit offset of unconditional branch.  */
 static inline uint32_t
 decode_branch_ofs_26 (uint32_t insn)
@@ -3264,7 +3265,7 @@ decode_add_imm (uint32_t insn)
 {
   return (insn >> 10) & MASK (12);
 }
-
+#endif
 
 /* Encode the 26-bit offset of unconditional branch.  */
 static inline uint32_t
