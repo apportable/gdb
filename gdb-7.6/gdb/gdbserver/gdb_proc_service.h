@@ -75,6 +75,15 @@ typedef unsigned int lwpid_t;
 typedef void *psaddr_t;
 #endif
 
+// mchinen: this hack is needed to compile for android platform 21 sysroot
+// we make x86 and arm build against 19, but aarch64 does not exist until 21.
+// https://code.google.com/p/android/issues/detail?id=86712),
+// http://blog.csdn.net/bupt073114/article/details/25211319
+#if defined(__aarch64__)
+typedef unsigned long elf_greg_t;
+typedef elf_greg_t elf_gregset_t[35];
+#endif
+
 #ifndef HAVE_PRGREGSET_T
 typedef elf_gregset_t prgregset_t;
 #endif
